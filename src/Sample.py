@@ -46,7 +46,7 @@ class Sample:
 
   def countCoverage(self, read):
     position = self.getWindow(read.pos)
-    rindex = self.__reads.references[read.tid]
+    rindex = self.__reads.getrname(read.tid)
 
     if position in self.__coverage[rindex]:
       self.__coverage[rindex][position][0] += 1
@@ -57,16 +57,25 @@ class Sample:
   def countInsertSize(self, read):
     mate = self.__reads.mate(read)
 
+    if read.pos < mate.pos: # rearranged reads
+      return
+
+    self.__readsCount += 1
+
+    if read.rlen == 0:
+      read.rlen = len(read.query)
+
     if read.tlen: # insert length is present
-      if read.rlen == 0:
-        read.rlen = len(read.query)
       if mate.rlen == 0:
         mate.rlen = len(mate.query)
 
-      self.__readsCount += 1
       self.__sumInsertSize += abs(read.tlen) - (read.rlen + mate.rlen)
     else: # count insert size
-      pass
+      if read.tid == mate.tid: # same chromosome
+        self.__sumInsertSize += mate.pos - read.pos - read.rlen
+      else: # another chromosome
+        lengthBetween = sum(self.__reads.lengths[read.tid:mate.tid + 1])
+        self.__sumInsertSize += lengthBetween + mate.pos - read.pos - read.rlen
 
   def countGCcontent(self, reference, start, end):
     sequence = self.__reference.fetch(reference=reference, start=start, end=end)

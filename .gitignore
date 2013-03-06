@@ -1,1 +1,7 @@
+# python executables
 *.py[cod]
+
+# directories
+inputs
+outputs
+others
