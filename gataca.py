@@ -27,8 +27,12 @@ def main(argv):
   if not params['reference'] or not params['sample']:
     return "Please specify file with sample and file with reference genome"
 
-  detector = Detector(params['sample'], params['reference'], params['policy'], params['region'])
-  return detector.start()
+  try:  
+    detector = Detector(params['sample'], params['reference'], params['policy'], params['region'])
+    return detector.start()
+  except Exception, ex:
+    sys.stderr.write("%s: error: %s\n" % (argv[0], ex))
+    return 1
 
   """
   # open BAM and get the iterator

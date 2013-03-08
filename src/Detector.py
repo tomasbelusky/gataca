@@ -4,6 +4,7 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
+import sys
 from Sample import Sample
 from Cluster import Cluster
 
