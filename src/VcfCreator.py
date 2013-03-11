@@ -26,8 +26,8 @@ class VcfCreator:
   def setAlt(self, aid, description):
     self.__alts.append((aid, description))
 
-  def setRecord(self, chrom, pos, rid, ref, alt, qual, rfilter, info):
-    self.__records.append((chrom, pos, rid, ref, alt, qual, rfilter, info))
+  def setRecord(self, record):
+    self.__records.append(record)
 
   def __addAttribute(self, attributes, key, attribute, addComma, addApostrophe=False):
     result = ""
@@ -72,20 +72,11 @@ class VcfCreator:
 
     for aid, description in self.__alts: # write alt
       output.write("##ALT=<ID=%s,Description=\"%s\">\n" % (aid, description))
-      
+
     output.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
 
-    for chrom, pos, rid, ref, alt, qual, rfilter, info in self.__records: # write records
-      output.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t" % (chrom, pos, rid, ref, alt, qual, rfilter))
-      first = True
-      
-      for key, value in info: # write info to record
-        if not first: # separate values
-          output.write(";")
-
-        output.write("%s=%s" % (key, value))
-
-      output.write("\n")
+    for rec in self.__records: # write records
+      output.write("%s\n" % rec)
 
     if type(name) != types.FileType:
       output.close()
