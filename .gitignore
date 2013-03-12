@@ -1,7 +1,10 @@
 # python executables
 *.py[cod]
 
+# SAM files
+*.sam
+
 # directories
-inputs
+inputs/samples
 outputs
 others
