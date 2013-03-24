@@ -13,6 +13,9 @@ from src.Sample import Sample
 from src.Detector import Detector
 
 def getParameters(argv):
+  """
+  Return parsed cmd parameters
+  """
   parser = optparse.OptionParser(description="Detection of genome variations from mapped reads on reference genome.")
   parser.add_option("-r", "--region", help="specify region of your interest, if not set variations will be find in whole genome", default=None, metavar="CHR:FROM-TO")
   parser.add_option("-p", "--policy", help="set how reads were sequenced (ff, fr, rf), default=%default", default="fr", choices=('fr', 'rf'))
@@ -23,24 +26,24 @@ def getParameters(argv):
   return parser.parse_args(argv[1:])
 
 def main(argv):
+  """
+  Main function
+  """
   (options, args) = getParameters(argv)
   params = options.__dict__
 
-  # check required params ------------------------------------------------------
-  if not params['reference'] or not params['sample']:
+  if not params['reference'] or not params['sample']: # check required params
     raise Exception("Please specify file with sample and file with reference genome")
 
-  # set output -----------------------------------------------------------------
-  if not params['output']:
+  if not params['output']: # set output
     params['output'] = sys.stdout
 
-  # set policy -----------------------------------------------------------------
-  if params['policy'] == "fr":
+  if params['policy'] == "fr": # set policy
     policy = Sample.ptype.FR
   else:
     policy = Sample.ptype.RF
 
-  # set region -----------------------------------------------------------------
+  # set region
   region = [None, None, None]
 
   if params['region']: # parse region
@@ -54,7 +57,7 @@ def main(argv):
     for i in [1, 2]: # start and end of reference
       region[i] = int(region[i]) if region[i] else None
 
-  # create objects, start and write output -------------------------------------
+  # create objects, start and write output
   refgenome = pysam.Fastafile(params['reference'])
   sample = Sample(params['sample'], refgenome, policy)
 

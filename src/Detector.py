@@ -6,90 +6,118 @@ __date__ = "05.03. 2013"
 
 import re
 import sys
+import copy
 import pysam
-import bisect
-from collections import deque
+from collections import OrderedDict
 from datetime import date
 from interface import *
 from VcfCreator import VcfCreator
 from Variation import Variation
 from Sample import Sample
-from Cluster import Cluster
+from clusters.BaseCluster import BaseCluster
 
 class Detector:
-  cigarOp = enum(ALIGNMENT=0,
-                 INSERTION=1,
-                 DELETION=2,
-                 SKIPPED=3,
-                 SOFTCLIP=4,
-                 HARDCLIP=5,
-                 PADDING=6,
-                 MATCH=7,
-                 MISMATCH=8)
-  faStates = enum(START=0,
-                  MATCH=1,
-                  DELETION=2)
-  bases = re.compile(r'[ATGC]', re.I)
+  """
+  Detector of variations
+  """
+  cigarOp = enum( # cigar operations
+    ALIGNMENT=0,
+    INSERTION=1,
+    DELETION=2,
+    SKIPPED=3,
+    SOFTCLIP=4,
+    HARDCLIP=5,
+    PADDING=6,
+    MATCH=7,
+    MISMATCH=8)
+  faStates = enum( # states of FA for finding SNPs and deletions from MD tag
+    START=0,
+    MATCH=1,
+    DELETION=2)
+  bases = re.compile(r'[A-Z]', re.I) # re that folds all letters
 
   def __init__(self, sample, refgenome, policy=Sample.ptype.FR, reference=None, start=None, end=None):
+    """
+    Initialize variables
+    """
     self.__sample = sample
     self.__policy = policy
     self.__reference = reference
     self.__start = start
     self.__end = end
-    self.__variations = []
-    self.__clusters = []
-    self.__vcfCreator = VcfCreator(self.__sample, refgenome)
+    self.__variations = dict((x, []) for x in self.__sample.getReferences())
+    self.__startClusters = OrderedDict((x, OrderedDict()) for x in self.__sample.getReferences())
+    self.__endClusters = copy.deepcopy(self.__startClusters)
+    self.__vcfCreator = VcfCreator(refgenome.filename)
 
   def start(self):
-    #self.__sample.preprocessing()
+    """
+    Start finding variations
+    """
+    self.__sample.preprocessing(self.__reference, self.__start, self.__end)
 
     # fetch paired reads (can be also singleton or unmapped mate)
-    for read, mate in self.__sample.fetchPairs(reference=self.__reference, start=self.__start, end=self.__end):
-      for end in [read]: # get SNP and indels from both pairs
-        if end: # read is mapped
-          self.getSnpIndels(end)
-
-      if not mate:
+    for paired in self.__sample.fetchPairs(reference=self.__reference, start=self.__start, end=self.__end):
+      if paired.isSingle(): # get only SNPs and indels from single read
+        self.getSnpIndels(paired.read())
         continue
 
-      """
-      distance = mate.pos - read.pos
-
-      if read.tid != mate.tid: # interchromosomal translocation?
-        pass
-      elif distance > self.__sample.getMaxInsertSize(): # deletion
-        pass
-      elif distance < self.__sample.getMinInsertSize(): # insertion
-        pass
-      """
+      self.getSnpIndels(paired.read())
+      self.getSnpIndels(paired.mate())
 
     self.makeClusters()
     return 0
 
   def makeClusters(self):
-    for variation in self.__variations:
-      self.__clusters.append(Cluster(variation.getType(), variation))
-
     """
-    ref = variation.getReference()
-    start = variation.getStart()
-    end = variation.getEnd() + 1
-    overlaps = []
-
-    for i in range(start, end):
-      overlaps.extend(self.__clusters[ref].get(i, []))
-
-    if not overlaps: # create new cluster
-      cluster = Cluster(variation.getType(), variation)
-      self.__clusters[ref][start] = [cluster]
-      self.__clusters[ref][end] = [cluster]
-    else: # some overlaps exists
-      for cluster in overlaps:
-        pass
+    Make clusters from finded variations to join alleles together
     """
+    for ref in self.__variations: # all references
+      for variation in sorted(self.__variations[ref], key=lambda v: v.getStart()): ## all variations
+        if (self.__end is not None and self.__end < variation.getStart()) or (self.__start is not None and variation.getEnd() < self.__start):
+          continue # out of specified region
+
+        ref = variation.getReference()
+        start = variation.getStart()
+        end = variation.getEnd()
+        overlaps = []
+        added = False
+
+        for i in range(start, end + 1): # search for overlaps with existing clusters
+          overlaps.extend(self.__startClusters[ref].get(i, []))
+          overlaps.extend(self.__endClusters[ref].get(i, []))
+
+        processed = []
+
+        if overlaps: # some overlaps exists
+          for cluster in overlaps: # compare similarity with all clusters
+            if cluster not in processed and cluster.compare(variation): # can add into cluster
+              processed.append(cluster)
+              added = True
+              oldStart = cluster.getStart()
+              oldEnd = cluster.getEnd()
+              cluster.add(variation)
+              newStart = cluster.getStart()
+              newEnd = cluster.getEnd()
+
+              if newStart != oldStart: # change start
+                self.__startClusters[ref][oldStart].remove(cluster)
+                self.__startClusters[ref][newStart] = self.__startClusters[ref].get(newStart, []) + [cluster]
+
+              if newEnd != oldEnd: # change end
+                self.__endClusters[ref][oldEnd].remove(cluster)
+                self.__endClusters[ref][newEnd] = self.__endClusters[ref].get(newEnd, []) + [cluster]
+
+        if not overlaps or not added: # create new cluster
+          c = BaseCluster(ref, self.__sample)
+          c.add(variation)
+          self.__startClusters[ref][start] = self.__startClusters[ref].get(start, []) + [c]
+          self.__endClusters[ref][end] = self.__endClusters[ref].get(end, []) + [c]
 
   def getSnpIndels(self, read):
+    """
+    Get SNPs and indels from CIGAR string and MD tag
+    """
     tags = dict(read.tags)
     mdtag = tags.get("MD", "")
     pos = read.pos
@@ -108,7 +136,9 @@ class Detector:
           continue
       elif operation == Detector.cigarOp.INSERTION: # store insertion and skip parsing MD
         newIndex = insIndex + length
-        self.__variations.append(Variation(Variation.vtype.INS, refname, insPos, insPos + length, read.seq[insIndex:newIndex], Variation.mtype.CIGAR_MD, read, refseq="."))
+        tmpPos = insPos - 1
+        refseq = self.__sample.fetchReference(read.tid, tmpPos, insPos)
+        self.__variations[refname].append(Variation(Variation.vtype.INS, refname, tmpPos, refseq + read.seq[insIndex:newIndex], refseq, Variation.mtype.CIGAR_MD, read, end=tmpPos))
         insIndex = newIndex
         queryIndex += length
         continue
@@ -119,6 +149,8 @@ class Detector:
       intIndex = 0
       match = ""
       deletion = ""
+      saveSNP = False
+      delVariation = None
 
       while mdtag: # parse MD string from read tags
         sign = mdtag[0]
@@ -129,11 +161,8 @@ class Detector:
           if sign.isdigit(): # matches
             match += sign
             state = Detector.faStates.MATCH
-          elif Detector.bases.match(sign):  # SNP -> start
-            self.__variations.append(Variation(Variation.vtype.SNP, refname, pos, pos, read.seq[queryIndex], Variation.mtype.CIGAR_MD, read, refseq=sign))
-            pos += 1
-            queryIndex += 1
-            intIndex += 1
+          elif Detector.bases.match(sign):  # SNP
+            saveSNP = True
           elif sign == '^': # deletion
             pos -= 1
             state = Detector.faStates.DELETION
@@ -155,49 +184,63 @@ class Detector:
                 pos -= 1
                 state = Detector.faStates.DELETION
               else: # SNP
-                self.__variations.append(Variation(Variation.vtype.SNP, refname, pos, pos, read.seq[queryIndex], Variation.mtype.CIGAR_MD, read, refseq=sign))
-                pos += 1
-                queryIndex += 1
-                intIndex += 1
-                state = Detector.faStates.START
+                saveSNP = True
         elif state == Detector.faStates.DELETION: # DELETION STATE -------------
           if Detector.bases.match(sign): # deleted bases
             deletion += sign
             mdtag = mdtag[1:]
+            newDeletion = "%s%s" % (read.seq[queryIndex], deletion)
+            delVariation = Variation(Variation.vtype.DEL, refname, pos, read.seq[queryIndex], newDeletion, Variation.mtype.CIGAR_MD, read, end=pos + len(deletion))
           else: # end of deletion
-            offset = len(deletion)
             intIndex += len(deletion)
-            deletion = "%s%s" % (read.seq[queryIndex], deletion)
-            self.__variations.append(Variation(Variation.vtype.DEL, refname, pos, pos + offset, read.seq[queryIndex], Variation.mtype.CIGAR_MD, read, refseq=deletion))
+            self.__variations[refname].append(delVariation)
             deletion = ""
             state = Detector.faStates.START
 
-        if intIndex >= length:
+        if saveSNP: # save SNP
+          self.__variations[refname].append(Variation(Variation.vtype.SNP, refname, pos, read.seq[queryIndex], sign, Variation.mtype.CIGAR_MD, read))
+          pos += 1
+          queryIndex += 1
+          intIndex += 1
+          state = Detector.faStates.START
+          saveSNP = False
+
+        if intIndex >= length: # go to next cigar operation
           break
 
       if state == Detector.faStates.DELETION: # add deletion
-        self.__variations.append(Variation(Variation.vtype.DEL, refname, pos, pos + len(deletion), read.seq[queryIndex], Variation.mtype.CIGAR_MD, read, refseq=deletion))
+        self.__variations[refname].append(delVariation)
 
   def write(self, filename):
-    self.__vcfCreator.setHeader('fileDate', date.today().strftime('%Y%m%d'))
-    self.__vcfCreator.setHeader('source', 'gataca')
-    self.__vcfCreator.setInfo('SVTYPE', 1, 'String', 'Type of structural variant')
-    self.__vcfCreator.setInfo('SVLEN', 1, 'Integer', 'Difference in length between REF and ALT')
-    self.__vcfCreator.setInfo('EVENT', 1, 'String', 'ID of event associated to breakend')
-    self.__vcfCreator.setInfo('BNDLEN', 1, 'Integer', 'Length of sequence between with breakends')
-    self.__vcfCreator.setInfo('END', 1, 'Integer', 'End position of the variant')
-    self.__vcfCreator.setInfo('IMPRECISE', 0, 'Flag', 'Imprecise structural variation')
-    self.__vcfCreator.setInfo('CIPOS', 2, 'Integer', 'Confidence interval around POS')
-    self.__vcfCreator.setInfo('CIEND', 2, 'Integer', 'Confidence interval around END')
-    self.__vcfCreator.setInfo('ISEQ', 1, 'String', 'Imprecise inserted sequence')
-    self.__vcfCreator.setInfo('CPREFIX', 1, 'Integer', 'Confidence prefix of inserted sequence')
-    self.__vcfCreator.setInfo('CSUFFIX', 1, 'Integer', 'Confidence suffix of inserted sequence')
-    self.__vcfCreator.setAlt('DEL', 'Deletion')
-    self.__vcfCreator.setAlt('INS', 'Insertion')
-    self.__vcfCreator.setAlt('INV', 'Inversion')
-    self.__vcfCreator.setAlt('BND', 'Breakend')
+    """
+    Write clusters with founded variations in VCF format
+    """
+    self.__vcfCreator.addHeader('fileDate', date.today().strftime('%Y%m%d'))
+    self.__vcfCreator.addHeader('source', 'gataca')
+    self.__vcfCreator.addInfo('SVTYPE', 1, 'String', 'Type of structural variant')
+    self.__vcfCreator.addInfo('SVLEN', 1, 'Integer', 'Difference in length between REF and ALT')
+    self.__vcfCreator.addInfo('EVENT', 1, 'String', 'ID of event associated to breakend')
+    self.__vcfCreator.addInfo('BNDLEN', 1, 'Integer', 'Length of sequence between with breakends')
+    self.__vcfCreator.addInfo('END', 1, 'Integer', 'End position of the variant')
+    self.__vcfCreator.addInfo('DEPTH', 'A', 'Integer', 'Read depths supporting each variation in a row')
+    self.__vcfCreator.addInfo('FULLDEPTH', 1, 'Integer', 'Full read depth')
+    self.__vcfCreator.addInfo('IMPRECISE', 0, 'Flag', 'Imprecise structural variation')
+    self.__vcfCreator.addInfo('CIPOS', 2, 'Integer', 'Confidence interval around POS')
+    self.__vcfCreator.addInfo('CIEND', 2, 'Integer', 'Confidence interval around END')
+    self.__vcfCreator.addInfo('ISEQ', 1, 'String', 'Imprecise inserted sequence')
+    self.__vcfCreator.addInfo('CPREFIX', 1, 'Integer', 'Confidence prefix of inserted sequence')
+    self.__vcfCreator.addInfo('CSUFFIX', 1, 'Integer', 'Confidence suffix of inserted sequence')
+    self.__vcfCreator.addAlt('DEL', 'Deletion')
+    self.__vcfCreator.addAlt('INS', 'Insertion')
+    self.__vcfCreator.addAlt('INV', 'Inversion')
+    self.__vcfCreator.addAlt('BND', 'Breakend')
 
-    for cluster in self.__clusters:
-      self.__vcfCreator.setRecord(cluster)
+    for contig in self.__sample.getRefSequences(): # add contigs
+      self.__vcfCreator.addContig(contig)
+
+    for ref in self.__startClusters: # add all clusters
+      for index in self.__startClusters[ref]:
+        for cluster in self.__startClusters[ref][index]:
+          self.__vcfCreator.addRecord(cluster)
 
     self.__vcfCreator.write(filename)
