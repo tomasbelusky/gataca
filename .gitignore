@@ -5,6 +5,6 @@
 *.sam
 
 # directories
-inputs
+inputs/samples
 outputs
 others
