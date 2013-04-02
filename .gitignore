@@ -5,6 +5,7 @@
 *.sam
 
 # directories
-inputs/samples
+inputs
 outputs
 others
+nbproject

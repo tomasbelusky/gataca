@@ -4,30 +4,30 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
-from interface import *
+from interface.interface import *
 
 class Variation:
   """
   Represents finded variation in genome
   """
-  vtype = enum( # type of variation
-    SNP=0,
-    DEL=1,
-    INS=2,
-    INV=3,
-    DUP=4,
-    DUT=5,
-    TRA=6)
-  svtype = ( # type of variation for VCF output
-    "DEL",
-    "INS",
-    "INV",
-    "BND")
-  mtype = enum( # type of method which find variation
-    CIGAR_MD=0,
-    READ_PAIR=1,
-    SPLIT_READ=2,
-    JOINED=3)
+  vtype = enum(# type of variation
+               SNP=0,
+               DEL=1,
+               INS=2,
+               INV=3,
+               DUP=4,
+               TRA=5)
+  svtype = (# type of variation for VCF output
+            "DEL",
+            "INS",
+            "INV",
+            "DUP",
+            "INS:TRA")
+  mtype = enum(# type of method which find variation
+               CIGAR_MD=0,
+               READ_PAIR=1,
+               SPLIT_READ=2,
+               JOINED=3)
 
   def __init__(self, vtype, reference, start, seq, refseq, mtype, *args, **kwargs):
     """
@@ -41,13 +41,22 @@ class Variation:
     self.__refseq = refseq
     self.__clusters = []
     self.__reads = args
-    self.__info = kwargs
+
+    if 'info' in kwargs:
+      self.__info = kwargs['info']
+    else:
+      self.__info = kwargs
+
     self.__info['depth'] = 1
 
-    if vtype in (Variation.vtype.DEL, Variation.vtype.INV, Variation.vtype.INS):
-      self.__info['svtype'] = Variation.svtype[vtype - 1]
-    elif vtype in (Variation.vtype.DUP, Variation.vtype.DUT, Variation.vtype.TRA):
-      self.__info['svtype'] = "BND"
+    if self.__type != Variation.vtype.SNP: # set SVTYPE
+      self.__info['svtype'] = Variation.svtype[self.__type - 1]
+
+      if not self.__seq: # create symbolic sequence for alternate
+        if self.__type == Variation.vtype.INV:
+          self.__seq = "<%s>" % self.__info['svtype']
+        else:
+          self.__seq = "%s<%s>" % (self.__refseq, self.__info['svtype'])
 
   @staticmethod
   def joinInfo(info1, info2):
@@ -62,7 +71,7 @@ class Variation:
         if value == info2[key]: # same value
           info[key] = value
         else: # join different info
-         pass
+          pass
       else: # only in first info
         info[key] = value
 
@@ -116,12 +125,21 @@ class Variation:
 
   def getEnd(self):
     """
-    Return right most index of variation if exist, else return leftmost index
+    Return rightmost index of variation if exist, else return leftmost index
     """
-    if 'end' in self.__info:
-      return self.__info['end']
-    else:
-      return self.__start
+    return self.__info.get('end', self.__start)
+
+  def getCopyPosition(self):
+    """
+    Return leftmost index where sequence between start and end should be copied
+    """
+    return self.__info.get('copypos', None)
+
+  def getCopyReference(self):
+    """
+    Return leftmost index where sequence between start and end should be copied
+    """
+    return self.__info.get('copyreference', None)
 
   def getSequence(self):
     """

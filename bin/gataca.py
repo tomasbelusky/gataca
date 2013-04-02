@@ -4,13 +4,13 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
-import os
-import sys
-import re
 import optparse
 import pysam
-from src.Sample import Sample
-from src.Detector import Detector
+import re
+import sys
+
+from resources.Sample import Sample
+from variations.Detector import Detector
 
 def getParameters(argv):
   """

@@ -1,26 +1,32 @@
 #!/usr/bin/python2.7
 #-*- encoding: utf-8 -*-
 
-_author_ = "Tomáš Beluský"
-_date_ = "05.03. 2013"
+__author__ = "Tomáš Beluský"
+__date__ = "05.03. 2013"
 
-import sys
+import re
 import copy
 import types
-from collections import OrderedDict
-from AbstractCluster import AbstractCluster
-from src.Variation import Variation
 
-class BaseCluster(AbstractCluster):
+from variations.Variation import Variation
+
+class BaseCluster:
   """
   Represents cluster of base variations
   """
+  noInfoChars = re.compile(r'[\[\]\s\']') # characters which wouldn't be printed in VCF output
 
-  def _init_(self, rname, sample):
+  def __init__(self, rname, sample):
     """
     Initialize variables
     """
-    AbstractCluster._init_(self, rname, sample)
+    self._rname = rname
+    self._rindex = sample.getRefIndex(rname)
+    self._sample = sample
+    self._variations = []
+    self._start = 0
+    self._end = 0
+    self._alleles = []
 
   @staticmethod
   def joinSame(first, second):
@@ -110,6 +116,51 @@ class BaseCluster(AbstractCluster):
 
     return first.getStart(), alleles
 
+  @staticmethod
+  def infoString(info):
+    """
+    Create string from info fields
+    """
+    if not info:
+      return ""
+
+    result = ""
+
+    for key, value in info.items(): # print common info
+      if type(value) == types.BooleanType:
+        result += "%s;" % (key.upper())
+      else:
+        result += "%s=%s;" % (key.upper(), BaseCluster.noInfoChars.sub('', str(value)))
+
+    return result[:-1]
+
+  def getStart(self):
+    """
+    Return index of leftmost base from variations in cluster
+    """
+    return self._start
+
+  def getEnd(self):
+    """
+    Return index of rightmost base from variations in cluster
+    """
+    return self._end
+
+  def add(self, variation):
+    """
+    Add variation into cluster
+    """
+    self._variations.append(variation)
+    self._process()
+
+  def remove(self, variation):
+    """
+    Remove variation from cluster
+    """
+    if variation in self.__variations:
+      self._variations.remove(variation)
+      self._process()
+
   def _process(self):
     """
     Join variations together for printing them in VCF output
@@ -150,19 +201,20 @@ class BaseCluster(AbstractCluster):
       return ""
 
     refseqs = {}
-    fulldepth = self._sample.getExactCoverage(self._rindex, self._start, self._end)
+    fulldepth = self._sample.getExactCoverages(self._rindex, self._start, self._end)
 
     for var in self._alleles: # get reference sequence and common info
       refseq = var.getReferenceSequence()
 
-      if refseq in refseqs: # same ref seq
-        for key, value in refseqs[refseq].items(): # remove not common info
-          if key == 'depth':
-            refseqs[refseq]['depth'] = '%s,%s' % (refseqs[refseq]['depth'], var.getInfo(key))
-          elif var.getInfo(key) != value:
+      if refseq in refseqs: # reference sequence exists
+        for key, value in refseqs[refseq].items():
+          if key == 'depth': # add depth of allele
+            refseqs[refseq]['depth'].append(var.getInfo(key))
+          elif var.getInfo(key) != value: # remove not common info
             del refseqs[refseq][key]
-      else: # new ref seq
+      else: # new reference sequence
         refseqs[refseq] = var.getInfo()
+        refseqs[refseq]['depth'] = [refseqs[refseq]['depth']]
 
     result = []
 
@@ -174,14 +226,10 @@ class BaseCluster(AbstractCluster):
         if var.getReferenceSequence() == refseq:
           sequences.append(var.getSequence())
 
-      r = "%s\t%s\t.\t%s\t%s\t.\t.\t" % (self._rname, self.getStart(), refseq, ','.join(sequences))
-
-      for key, value in info.items(): # print common info
-        if type(value) == types.BooleanType:
-          r += "%s;" % (key.upper())
-        else:
-          r += "%s=%s;" % (key.upper(), AbstractCluster.noInfoChars.sub('', str(value)))
-
-      result.append(r[:-1])
+      result.append("%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
+                                                       self._start,
+                                                       refseq,
+                                                       ','.join(sequences),
+                                                       self.infoString(info)))
 
     return '\n'.join(result)

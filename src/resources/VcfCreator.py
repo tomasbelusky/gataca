@@ -4,9 +4,7 @@
 __author__ = "Tomáš Beluský"
 __date__ = "09.03. 2013"
 
-import re
 import types
-import codecs
 
 class VcfCreator:
   """
