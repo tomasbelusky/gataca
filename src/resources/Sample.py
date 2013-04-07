@@ -23,20 +23,30 @@ class Sample:
                FR=0, # forward/reverse
                RF=1) # reverse/forward
 
-  def __init__(self, filename, refgenome, policy=ptype.FR):
+  def __init__(self, filename, refgenome, policy=ptype.FR, minInsertSize=0, maxInsertSize=0, countCoverage=True):
     """
     Initialize variables
     """
     self.__reads = pysam.Samfile(filename)
     self.__refgenome = refgenome
     self.__policy = policy
-    self.__minInsertSize = 0
-    self.__maxInsertSize = 0
+    self.__minInsertSize = minInsertSize
+    self.__maxInsertSize = maxInsertSize
     self.__avgInsertSize = 0
     self.__stdInsertSize = 0
     self.__insertSizes = []
     self.__coverage = dict((ref, {}) for ref in range(self.__reads.nreferences))
     self.__gcContent = {}
+
+    if countCoverage:
+      self.__coverageRef = self.__countCoverage
+    else:
+      self.__coverageRef = self.__passCounting
+
+    if self.__minInsertSize and self.__maxInsertSize:
+      self.__insertSizeRef = self.__passCounting
+    else:
+      self.__insertSizeRef = self.__countInsertSize
 
     # set references on methods which are based on policy
     if self.__policy == Sample.ptype.FR:
@@ -48,17 +58,15 @@ class Sample:
       Read._readInvertedRef = Read._isReadInvertedRF
       Read._mateInvertedRef = Read._isMateInvertedRF
 
-  @staticmethod
-  def readOutOfRegion(reference, start, end, read):
+  def readOutOfRegion(self, reference, start, end, read):
     """
     Check if read is out of specified region
     """
-    return (reference is not None and reference != read.tid) or \
+    return (reference is not None and reference != self.getRefName(read.tid)) or \
            (end is not None and end < read.pos) or \
-           (start is not None and (read.pos + read.alen) < start)
+           (start is not None and Read.calculateReadEnd(read) < start)
 
-  @staticmethod
-  def variationOutOfRegion(reference, start, end, variation):
+  def variationOutOfRegion(self, reference, start, end, variation):
     """
     Check if variation is out of specified region
     """
@@ -123,7 +131,7 @@ class Sample:
     count = 0
 
     for read in self.__reads.fetch(reference=self.__reads.references[reference], start=start, end=start+1):
-      if not read.is_unmapped:
+      if not read.is_unmapped and not read.is_duplicate and Read.hasMinQuality(read):
         count += 1
 
     return count
@@ -136,7 +144,7 @@ class Sample:
     count = 0
 
     for read in self.__reads.fetch(reference=self.__reads.references[reference], start=start, end=end+1):
-      if not read.is_unmapped:
+      if not read.is_unmapped and not read.is_duplicate and Read.hasMinQuality(read):
         count += 1
 
     return count
@@ -180,44 +188,58 @@ class Sample:
     """
     Count and repair coverage from GC content and count insert length's statistics
     """
+    if self.__coverageRef == self.__passCounting and self.__insertSizeRef == self.__passCounting:
+      return # don't count anything
+
     for paired in self.fetchPairs(reference, start, end):
-      if not paired.isSingle():
-        self.__addInsertSize(paired)
-      """
-      INFO: don't count coverage in test phase
       if paired.isSingle(): # count only coverage for read
-        self.__addCoverage(paired.read())
+        self.__coverageRef(paired.read())
       else: # count coverage and insert length
-        self.__addCoverage(paired.read())
-        self.__addCoverage(paired.mate())
+        self.__coverageRef(paired.read())
+        self.__coverageRef(paired.mate())
         self.__addInsertSize(paired)
 
     self.__repairGCcontent()
-      """
 
-    allCount = len(self.__insertSizes)
-    allHalf = int(allCount / 2)
-    coreCount = max(Sample.minCoreCount, int(allCount * Sample.core))
+    if self.__insertSizeRef != self.__passCounting: # count min and max insert size
+      allCount = len(self.__insertSizes)
+      allHalf = int(allCount / 2)
+      coreCount = max(Sample.minCoreCount, int(allCount * Sample.core))
 
-    if allCount < coreCount: # give all values into core
-      coreInsertSizes = self.__insertSizes
-    else: # create core from middle of values
-      coreHalf = int(math.ceil(coreCount / 2.0))
-      coreInsertSizes = sorted(self.__insertSizes)[allHalf-coreHalf:allHalf+coreHalf]
+      if allCount < coreCount: # give all values into core
+        coreInsertSizes = self.__insertSizes
+      else: # create core from middle of values
+        coreHalf = int(math.ceil(coreCount / 2.0))
+        coreInsertSizes = sorted(self.__insertSizes)[allHalf-coreHalf:allHalf+coreHalf]
 
-    count = float(len(coreInsertSizes))
+      count = float(len(coreInsertSizes))
 
-    if count: # there are paired reads
-      self.__sumInsertSize = sum(coreInsertSizes)
-      self.__avgInsertSize = self.__sumInsertSize / count
-      tmpStdSum = sum([pow(x-self.__avgInsertSize, 2) for x in coreInsertSizes])
-      self.__stdInsertSize = math.sqrt(tmpStdSum / count)
-      std3 = self.__stdInsertSize * 3
-      self.__minInsertSize = int(math.ceil(self.__avgInsertSize - std3))
-      self.__maxInsertSize = int(math.floor(self.__avgInsertSize + std3))
+      if count: # there are paired reads
+        self.__sumInsertSize = sum(coreInsertSizes)
+        self.__avgInsertSize = self.__sumInsertSize / count
+        tmpStdSum = sum([pow(x-self.__avgInsertSize, 2) for x in coreInsertSizes])
+        self.__stdInsertSize = math.sqrt(tmpStdSum / count)
+        std3 = self.__stdInsertSize * 3
+        self.__minInsertSize = int(math.ceil(self.__avgInsertSize - std3))
+        self.__maxInsertSize = int(math.floor(self.__avgInsertSize + std3))
 
-    print self.__minInsertSize
-    print self.__maxInsertSize
+  def __countCoverage(self, read):
+    """
+    Add depth of coverage
+    """
+    self.__addCoverage(read)
+
+  def __countInsertSize(self, paired):
+    """
+    Add insert size
+    """
+    self.__addInsertSize(paired)
+
+  def __passCounting(self, *args):
+    """
+    Don't count coverage/insert size
+    """
+    pass
 
   def __addCoverage(self, read):
     """
@@ -236,10 +258,6 @@ class Sample:
     Add insert length into list
     """
     size = paired.size()
-
-    #if paired.isRearranged():
-    #  print paired.actualSize()
-    paired.actualSize()
 
     if size and paired.isNormal():
       self.__insertSizes.append(size)

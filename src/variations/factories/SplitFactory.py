@@ -4,7 +4,9 @@
 __author__ = "Tomáš Beluský"
 __date__ = "31.03. 2013"
 
-class SplitFactory:
+from BaseFactory import BaseFactory
+
+class SplitFactory(BaseFactory):
   """
   Creating factory of variations detected by split read method
   """

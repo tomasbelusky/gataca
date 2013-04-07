@@ -1,5 +1,5 @@
 #!/usr/bin/python2.7
-#-*- encoding: utf-8 -*-
+# -*- encoding: utf-8 -*-
 
 __author__ = "Tomáš Beluský"
 __date__ = "09.03. 2013"

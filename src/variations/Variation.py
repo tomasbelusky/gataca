@@ -4,6 +4,8 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
+import copy
+
 from interface.interface import *
 
 class Variation:
@@ -41,13 +43,10 @@ class Variation:
     self.__refseq = refseq
     self.__clusters = []
     self.__reads = args
+    self.__info = kwargs.get('info', kwargs)
 
-    if 'info' in kwargs:
-      self.__info = kwargs['info']
-    else:
-      self.__info = kwargs
-
-    self.__info['depth'] = 1
+    if 'depth' not in self.__info:
+      self.__info['depth'] = 1
 
     if self.__type != Variation.vtype.SNP: # set SVTYPE
       self.__info['svtype'] = Variation.svtype[self.__type - 1]
@@ -57,29 +56,6 @@ class Variation:
           self.__seq = "<%s>" % self.__info['svtype']
         else:
           self.__seq = "%s<%s>" % (self.__refseq, self.__info['svtype'])
-
-  @staticmethod
-  def joinInfo(info1, info2):
-    """
-    Join and return informations from two variations
-    TODO: joining different informations
-    """
-    info = {}
-
-    for key, value, in info1.items():
-      if key in info2: # same key in info2
-        if value == info2[key]: # same value
-          info[key] = value
-        else: # join different info
-          pass
-      else: # only in first info
-        info[key] = value
-
-    for key, value, in info2.items(): # aad info which are only in info2
-      if key not in info1: # unique info
-        info[key] = value
-
-    return info
 
   def contain(self, var):
     """
@@ -91,13 +67,14 @@ class Variation:
     """
     Test if variation overlap with another variation on right side
     """
-    return self.getStart() < var.getStart() and self.getEnd() < var.getEnd() and var.getStart() <= self.getEnd()
+    return (self.getStart() <= var.getStart() and var.getStart() <= self.getEnd()) or \
+      (var.getStart() <= self.getStart() and self.getStart() <= var.getEnd())
 
   def allele(self, var):
     """
     Test if another variation represents another allele of actual variation
     """
-    return self.getStart() == var.getStart() and not self.getInfo('imprecise') and not var.getInfo('imprecise')
+    return self.getStart() == var.getStart() and not self.isImprecise() and not var.isImprecise()
 
   def getType(self):
     """
@@ -129,17 +106,33 @@ class Variation:
     """
     return self.__info.get('end', self.__start)
 
-  def getCopyPosition(self):
+  def getMaxStart(self):
     """
-    Return leftmost index where sequence between start and end should be copied
+    Return max lefmost index of variation
     """
-    return self.__info.get('copypos', None)
+    plus = self.__info.get('cpos', 0)
 
-  def getCopyReference(self):
+    if plus in ('+', '-'):
+      plus = 0
+
+    return self.__start + plus
+
+  def getMaxEnd(self):
     """
-    Return leftmost index where sequence between start and end should be copied
+    Return max rightmost index of variation if exist, else return leftmost index
     """
-    return self.__info.get('copyreference', None)
+    plus = self.__info.get('cend', 0)
+
+    if plus in ('+', '-'):
+      plus = 0
+
+    return self.__info.get('end', self.__info.get('max', self.__start)) + plus
+
+  def isImprecise(self):
+    """
+    Test if variation is precise
+    """
+    return self.__info.get('imprecise', False)
 
   def getSequence(self):
     """
@@ -160,7 +153,7 @@ class Variation:
     if key:
       return self.__info.get(key, None)
     else:
-      return self.__info
+      return copy.deepcopy(self.__info)
 
   def incDepth(self):
     """

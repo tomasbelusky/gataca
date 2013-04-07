@@ -22,6 +22,8 @@ def getParameters(argv):
   parser.add_option("-s", "--sample", help="file with aligned reads to reference genome [-f] in BAM format")
   parser.add_option("-o", "--output", help="Name of output VCF file, by default output will be print on standard output")
   parser.add_option("-f", "--reference", help="FASTA file with reference genome")
+  parser.add_option("-i", "--insert_size", help="Interval of accepted size between reads", metavar="MIN-MAX", default="0-0")
+  parser.add_option("-d", "--dont_use_coverage", help="Don't use coverage in variation detection", action="store_false", default=True)
   parser.set_defaults(region=None)
   return parser.parse_args(argv[1:])
 
@@ -57,9 +59,15 @@ def main(argv):
     for i in [1, 2]: # start and end of reference
       region[i] = int(region[i]) if region[i] else None
 
+  # set min and max insert size
+  insertSizeMatch = re.match(r'(?P<min>\d+)-(?P<max>\d+)', params['insert_size'])
+
+  if not insertSizeMatch:
+    raise Exception("Insert size interval has bad format")
+
   # create objects, start and write output
   refgenome = pysam.Fastafile(params['reference'])
-  sample = Sample(params['sample'], refgenome, policy)
+  sample = Sample(params['sample'], refgenome, policy, int(insertSizeMatch.group('min')), int(insertSizeMatch.group('max')), params['dont_use_coverage'])
 
   if region[0] and region[0] not in sample.getReferences(): # check reference name
     raise Exception("Unknown reference")

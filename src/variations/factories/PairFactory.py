@@ -6,269 +6,295 @@ __date__ = "25.03. 2013"
 
 from variations.Variation import Variation
 from variations.clusters.OppositeCluster import OppositeCluster
+from BaseFactory import BaseFactory
 
-class PairFactory:
+class PairFactory(BaseFactory):
   """
   Creating factory of variations detected by read pair method
   """
 
-  @staticmethod
-  def insertion(paired, sample):
+  def __init__(self, sample):
+    """
+    Initialize variables
+    """
+    BaseFactory.__init__(self, sample)
+
+  def insertion(self, paired):
+    """
+    Create insertion
+    """
     info = {'imprecise': True}
-    pos = paired.readEnd() - 1
-    info['end'] = pos
-    info['cilen'] = [sample.getMinInsertSize() - paired.actualSize(), sample.getMaxInsertSize() - paired.actualSize()]
-    info['cipos'] = [0, paired.mate().pos - pos]
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    pos = paired.mate().pos - 1
+    info['cilen'] = [self._sample.getMinInsertSize() - paired.actualSize(), self._sample.getMaxInsertSize() - paired.actualSize()]
+    info['cpos'] = -paired.actualSize()
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.INS, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
 
-  @staticmethod
-  def deletion(paired, sample):
+  def deletion(self, paired):
+    """
+    Create deletion
+    """
     info = {'imprecise': True}
-    pos = paired.readEnd() - 1
-    info['end'] = paired.mate().pos
-    info['cilen'] = [-(paired.actualSize() - sample.getMinInsertSize()), -(paired.actualSize() - sample.getMaxInsertSize())]
-    info['cipos'] = [0, paired.mate().pos - pos + info['cilen'][1]]
-    info['ciend'] = [-info['cipos'][1], 0]
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    pos = paired.readEnd() + self._sample.getMaxInsertSize() - 1
+    info['max'] = paired.mate().pos - 1
+    info['cilen'] = [paired.actualSize() - self._sample.getMaxInsertSize(), paired.actualSize() - self._sample.getMinInsertSize()]
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.DEL, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
 
-  @staticmethod
-  def inversionRead(paired, sample):
+  def inversionRead(self, paired):
+    """
+    Create inversion of read
+    """
     info = {'imprecise': True}
-    pos = paired.read().pos - sample.getMaxInsertSize()
-    info['end'] = paired.mate().pos
-    info['cilen'] = [paired.readEnd() - paired.read().pos, info['end'] - pos]
-    info['cipos'] = [0, info['cilen'][1] - info['cilen'][0]]
-    info['ciend'] = [-info['cipos'][1], 0]
-    addToLen = paired.actualSize() - sample.getMaxInsertSize()
-    toRead = paired.read().pos - pos
-    afterRead = -(info['end'] - paired.readEnd())
-
-    if addToLen > 0:
-      info['cilen'][0] += addToLen
-
-    if toRead < info['cipos'][1]:
-      info['cipos'][1] = toRead
-
-    if afterRead > info['ciend'][0]:
-      info['ciend'][0] = afterRead
-
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    pos = paired.read().pos
+    info['end'] = paired.readEnd()
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['cend'] = paired.actualSize()
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.INV, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), info=info)
 
-  @staticmethod
-  def inversionMate(paired, sample):
+  def inversionMate(self, paired):
+    """
+    Create inversion of mate
+    """
     info = {'imprecise': True}
-    pos = paired.readEnd()
-    info['end'] = paired.mateEnd() + sample.getMaxInsertSize()
-    info['cilen'] = [paired.mateEnd() - paired.mate().pos, info['end'] - pos]
-    info['cipos'] = [0, info['cilen'][1] - info['cilen'][0]]
-    info['ciend'] = [-info['cipos'][1], 0]
-    addToLen = paired.actualSize() - sample.getMaxInsertSize()
-    toMate = paired.mate().pos - pos
-    afterMate = -(info['end'] - paired.mateEnd())
-
-    if addToLen > 0:
-      info['cilen'][0] += addToLen
-
-    if toMate < info['cipos'][1]:
-      info['cipos'][1] = toMate
-
-    if afterMate > info['ciend'][0]:
-      info['ciend'][0] = afterMate
-
-    refseq = sample.fetchReference(paired.mate().tid, pos, pos+1)
+    pos = paired.mate().pos
+    info['end'] = paired.mateEnd()
+    info['cpos'] = -paired.actualSize()
+    info['cend'] = self._sample.getMaxInsertSize()
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.INV, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.mate(), info=info)
 
-  @staticmethod
-  def inversionReadOnly(read, sample):
+  def inversionReadOnly(self, read):
+    """
+    Create inversion of one read not according to it's mate
+    """
     info = {'imprecise': True}
     pos = read.pos
-    info['end'] = read.pos + read.alen
-    info['cilen'] = [info['end'] - pos, "."]
-    info['cipos'] = [".", 0]
-    info['ciend'] = [0, "."]
-    refseq = sample.fetchReference(read.tid, pos, pos+1)
-    return Variation(Variation.vtype.INV, sample.getRefName(read.tid), pos, None, refseq, Variation.mtype.READ_PAIR, read, info=info)
+    info['end'] = read.pos + read.rlen
+    info['cpos'] = "-"
+    info['cend'] = "+"
+    refseq = self._sample.fetchReference(read.tid, pos, pos+1)
+    self._repairInfo(pos, info)
+    return Variation(Variation.vtype.INV, self._sample.getRefName(read.tid), pos, None, refseq, Variation.mtype.READ_PAIR, read, info=info)
 
-  @staticmethod
-  def overlap(paired, sample):
+  def overlap(self, paired):
+    """
+    Create duplication from overlap
+    """
     info = {'imprecise': True}
-    pos = paired.mate().pos - sample.getMaxInsertSize() - 1
-    info['end'] = paired.readEnd() + sample.getMaxInsertSize()
-    info['cilen'] = [paired.readEnd() - paired.mate().pos, info['end'] - pos]
-    info['cipos'] = [0, paired.mate().pos - pos]
-    info['ciend'] = [paired.readEnd() - info['end'], 0]
+    pos = paired.mate().pos - 1
+    info['end'] = paired.readEnd()
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['cend'] = self._sample.getMaxInsertSize()
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
+    var = Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
+    var.incDepth()
+    return var
 
+    """
+    INFO: possible feature
     # first possible position
-    info['dupchrom'] = sample.getRefName(paired.mate().tid)
-    info['duppos'] = paired.readEnd() + sample.getMinInsertSize()
-    info['ciduppos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    info['dupchrom'] = self._sample.getRefName(paired.mate().tid)
+    info['duppos'] = paired.readEnd() + self._sample.getMaxInsertSize()
+    info['cduppos'] = -self._sample.getMaxInsertSize()
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self.repairInfo(pos, info)
     var1 = Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
     var1.incDepth()
 
     # second possible position
-    info['dupchrom'] = sample.getRefName(paired.read().tid)
-    info['duppos'] = paired.mate().pos - sample.getMinInsertSize()
-    info['ciduppos'] = [sample.getMinInsertSize() - sample.getMaxInsertSize(), 0]
-    refseq = sample.fetchReference(paired.mate().tid, pos, pos+1)
+    info['dupchrom'] = self._sample.getRefName(paired.read().tid)
+    info['duppos'] = paired.mate().pos - self._sample.getMaxInsertSize() + paired.actualSize()
+    info['cduppos'] = self._sample.getMaxInsertSize() - self._sample.getMinInsertSize()
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self.repairInfo(pos, info)
     var2 = Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
     var2.incDepth()
 
     return OppositeCluster(var1, var2)
+    """
 
-  @staticmethod
-  def overlapRearranged(paired, sample):
+  def overlapRearranged(self, paired):
+    """
+    Create duplication from rearranged overlap
+    """
     info = {'imprecise': True}
-    pos = paired.read().pos - sample.getMaxInsertSize() - 1
-    info['end'] = paired.mateEnd() + sample.getMaxInsertSize()
-    info['cilen'] = [paired.readEnd() - paired.mate().pos, info['end'] - pos]
-    info['cipos'] = [0, paired.mate().pos - pos]
-    info['ciend'] = [paired.readEnd() - info['end'], 0]
+    pos = paired.mate().pos - 1
+    info['end'] = paired.readEnd()
+    info['cpos'] = -(paired.mateEnd() - paired.read().pos + paired.actualSize() + self._sample.getMaxInsertSize())
+    info['cend'] = -info['cpos']
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self._repairInfo(pos, info)
+    var = Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
+    var.incDepth()
+    return var
 
+    """
+    INFO: possible feature
     # first possible position
-    info['dupchrom'] = sample.getRefName(paired.read().tid)
-    info['duppos'] = paired.mateEnd() + sample.getMinInsertSize()
-    info['ciduppos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-    refseq = sample.fetchReference(paired.mate().tid, pos, pos+1)
+    info['dupchrom'] = self._sample.getRefName(paired.read().tid)
+    info['duppos'] = paired.mateEnd() + self._sample.getMinInsertSize()
+    info['cduppos'] = [0, self._sample.getMaxInsertSize() - self._sample.getMinInsertSize()]
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self.repairInfo(pos, info)
     var1 = Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
     var1.incDepth()
 
     # second possible position
-    info['dupchrom'] = sample.getRefName(paired.mate().tid)
-    info['duppos'] = paired.read().pos - sample.getMinInsertSize()
-    info['ciduppos'] = [sample.getMinInsertSize() - sample.getMaxInsertSize(), 0]
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    info['dupchrom'] = self._sample.getRefName(paired.mate().tid)
+    info['duppos'] = paired.read().pos - self._sample.getMinInsertSize()
+    info['cduppos'] = [self._sample.getMinInsertSize() - self._sample.getMaxInsertSize(), 0]
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self.repairInfo(pos, info)
     var2 = Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
     var2.incDepth()
 
     return OppositeCluster(var1, var2)
+    """
 
-  @staticmethod
-  def rightDuplication(paired, sample):
+  def rightDuplication(self, paired):
+    """
+    Create duplication on right side
+    """
     info = {'imprecise' : True}
     pos = paired.mate().pos - 1
     info['end'] = paired.mateEnd()
-    info['cilen'] = [paired.mateEnd() - paired.mate().pos, paired.mateEnd() - paired.readEnd() + sample.getMaxInsertSize()]
-    info['cipos'] = [paired.readEnd() - paired.mate().pos, 0]
-    info['ciend'] = [0, sample.getMaxInsertSize()]
-    info['dupchrom'] = sample.getRefName(paired.read().tid)
-    info['duppos'] = paired.read().pos - sample.getMinInsertSize() - (paired.mateEnd() - paired.mate().pos) - 1
-    info['ciduppos'] = [paired.readEnd() - paired.mate().pos + sample.getMinInsertSize() - sample.getMaxInsertSize(), 0]
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    info['cpos'] = -paired.actualSize()
+    info['cend'] = self._sample.getMaxInsertSize()
+    """
+    INFO: possible feature
+    info['dupchrom'] = self._sample.getRefName(paired.read().tid)
+    info['duppos'] = paired.read().pos - self._sample.getMinInsertSize() - (paired.mateEnd() - paired.mate().pos)
+    info['cduppos'] = [-paired.actualSize() + self._sample.getMinInsertSize() - self._sample.getMaxInsertSize(), 0]
+    """
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.DUP, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
 
-  @staticmethod
-  def leftDuplication(paired, sample):
+  def leftDuplication(self, paired):
+    """
+    Create duplication on left side
+    """
     info = {'imprecise' : True}
     pos = paired.read().pos - 1
     info['end'] = paired.readEnd()
-    info['cilen'] = [paired.readEnd() - paired.read().pos, paired.mate().pos - paired.read().pos + sample.getMaxInsertSize()]
-    info['cipos'] = [-sample.getMaxInsertSize(), 0]
-    info['ciend'] = [0, paired.mate().pos - paired.readEnd()]
-    info['dupchrom'] = sample.getRefName(paired.read().tid)
-    info['duppos'] = paired.mateEnd() + sample.getMinInsertSize()
-    info['ciduppos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-    refseq = sample.fetchReference(paired.mate().tid, pos, pos+1)
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['cend'] = paired.actualSize()
+    """
+    INFO: possible feature
+    info['dupchrom'] = self._sample.getRefName(paired.mate().tid)
+    info['duppos'] = paired.mateEnd() + self._sample.getMinInsertSize()
+    info['cduppos'] = [0, self._sample.getMaxInsertSize() - self._sample.getMinInsertSize()]
+    """
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.DUP, paired.getMateReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
 
-  @staticmethod
-  def rearrangement(paired, sample):
-    var1 = PairFactory.leftTranslocationRearranged(paired, sample)
-    var2 = PairFactory.rightTranslocationRearranged(paired, sample)
-    var3 = PairFactory.leftDuplication(paired, sample)
-    var4 = PairFactory.rightDuplication(paired, sample)
-    return OppositeCluster(var1, var2, var3, var4)
-
-  @staticmethod
-  def rightTranslocation(paired, sample):
+  def rightTranslocation(self, paired):
+    """
+    Create translocation on right side
+    """
     info = {'imprecise': True}
-
-    if paired.isReadInverted():
-      pos = paired.readEnd()
-      info['cipos'] = [0, sample.getMaxInsertSize()]
-    else:
-      pos = paired.readEnd() + sample.getMinInsertSize() - 1
-      info['cipos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-
-    if paired.isMateInverted():
-      info['trapos'] = paired.mate().pos
-      info['tracipos'] = [".", 0]
-      info['traciend'] = [0, sample.getMaxInsertSize()]
-    else:
-      info['trapos'] = paired.mate().pos - sample.getMaxInsertSize()
-      info['tracipos'] = [0, sample.getMaxInsertSize()]
-      info['traciend'] = [0, "."]
-
-    info['end'] = pos
-    info['cilen'] = [paired.mateEnd() - paired.mate().pos, "."]
-    info['trachrom'] = sample.getRefName(paired.mate().tid)
-    info['traend'] = paired.mateEnd()
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
-    return Variation(Variation.vtype.TRA, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
-
-  @staticmethod
-  def leftTranslocation(paired, sample):
-    info = {'imprecise': True}
-
-    if paired.isReadInverted():
-      info['tracipos'] = [-sample.getMaxInsertSize(), 0]
-      info['traend'] = paired.readEnd()
-      info['traciend'] = [0, "."]
-    else:
-      info['tracipos'] = [".", 0]
-      info['traend'] = paired.readEnd() + sample.getMaxInsertSize()
-      info['traciend'] = [sample.getMinInsertSize() - sample.getMaxInsertSize(), 0]
-
-    if paired.isMateInverted():
-      info['cipos'] = [0, sample.getMaxInsertSize()]
-    else:
-      info['cipos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-
-    pos = paired.mate().pos - sample.getMaxInsertSize() - (paired.readEnd() - paired.read().pos)
-    info['end'] = pos
-    info['cilen'] = [paired.readEnd() - paired.read().pos, "."]
-    info['trachrom'] = sample.getRefName(paired.read().tid)
-    info['trapos'] = paired.read().pos
-    refseq = sample.fetchReference(paired.mate().tid, pos, pos+1)
-    return Variation(Variation.vtype.TRA, paired.getMateReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
-
-  @staticmethod
-  def translocation(paired, sample):
-    return OppositeCluster(PairFactory.leftTranslocation(paired, sample), PairFactory.rightTranslocation(paired, sample))
-
-  @staticmethod
-  def rightTranslocationRearranged(paired, sample):
-    info = {'imprecise': True}
-    pos = paired.read().pos - sample.getMaxInsertSize() - (paired.mateEnd() - paired.mate().pos)
-    info['end'] = pos
-    info['cilen'] = [paired.mateEnd() - paired.mate().pos, "."]
-    info['cipos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-    info['trachrom'] = sample.getRefName(paired.mate().tid)
+    pos = paired.readEnd() + self._sample.getMaxInsertSize() - 1
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['trachrom'] = self._sample.getRefName(paired.mate().tid)
     info['trapos'] = paired.mate().pos
-    info['traend'] = paired.mateEnd() + sample.getMaxInsertSize()
-    info['tracipos'] = [".", 0]
-    info['traciend'] = [sample.getMinInsertSize() - sample.getMaxInsertSize(), 0]
-    refseq = sample.fetchReference(paired.read().tid, pos, pos+1)
+    info['traend'] = paired.mateEnd()
+
+    if paired.isMateInverted():
+      info['tracpos'] = "-"
+      info['tracend'] = self._sample.getMaxInsertSize()
+    else:
+      info['tracpos'] = -self._sample.getMaxInsertSize()
+      info['tracend'] = "+"
+
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
 
-  @staticmethod
-  def leftTranslocationRearranged(paired, sample):
+  def leftTranslocation(self, paired):
+    """
+    Create translocation on left side
+    """
     info = {'imprecise': True}
-    pos = paired.mateEnd() + sample.getMinInsertSize() - 1
-    info['end'] = pos
-    info['cilen'] = [paired.readEnd() - paired.read().pos, "."]
-    info['cipos'] = [0, sample.getMaxInsertSize() - sample.getMinInsertSize()]
-    info['trachrom'] = sample.getRefName(paired.read().tid)
-    info['trapos'] = paired.read().pos - sample.getMaxInsertSize()
+    pos = paired.mate().pos - 1
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['trachrom'] = self._sample.getRefName(paired.read().tid)
+    info['trapos'] = paired.read().pos
     info['traend'] = paired.readEnd()
-    info['tracipos'] = [0, sample.getMaxInsertSize()]
-    info['traciend'] = [0, "."]
-    refseq = sample.fetchReference(paired.mate().tid, pos, pos+1)
+
+    if paired.isReadInverted():
+      info['tracpos'] = -self._sample.getMaxInsertSize()
+      info['tracend'] = "+"
+    else:
+      info['tracpos'] = "-"
+      info['tracend'] = self._sample.getMaxInsertSize()
+
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, paired.getMateReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
 
-  @staticmethod
-  def translocationRearranged(paired, sample):
-    return OppositeCluster(PairFactory.leftTranslocationRearranged(paired, sample), PairFactory.rightTranslocationRearranged(paired, sample))
+  def rightTranslocationRearranged(self, paired):
+    """
+    Create rearranged translocation on right side
+    """
+    info = {'imprecise': True}
+    pos = paired.read().pos - 1
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['trachrom'] = self._sample.getRefName(paired.mate().tid)
+    info['trapos'] = paired.mate().pos
+    info['traend'] = paired.mateEnd()
+    info['tracpos'] = -paired.actualSize()
+    info['tracend'] = self._sample.getMaxInsertSize()
+    refseq = self._sample.fetchReference(paired.read().tid, pos, pos+1)
+    self._repairInfo(pos, info)
+    return Variation(Variation.vtype.TRA, paired.getReadReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
+
+  def leftTranslocationRearranged(self, paired):
+    """
+    Create rearranged translocation on left side
+    """
+    info = {'imprecise': True}
+    pos = paired.mateEnd() + self._sample.getMaxInsertSize() - 1
+    info['cpos'] = -self._sample.getMaxInsertSize()
+    info['trachrom'] = self._sample.getRefName(paired.read().tid)
+    info['trapos'] = paired.read().pos
+    info['traend'] = paired.readEnd()
+    info['tracpos'] = -self._sample.getMaxInsertSize()
+    info['tracend'] = paired.actualSize()
+    refseq = self._sample.fetchReference(paired.mate().tid, pos, pos+1)
+    self._repairInfo(pos, info)
+    return Variation(Variation.vtype.TRA, paired.getMateReference(), pos, None, refseq, Variation.mtype.READ_PAIR, paired.read(), paired.mate(), info=info)
+
+  def translocation(self, paired):
+    """
+    Create translocations
+    """
+    var1 = self.leftTranslocation(paired)
+    var2 = self.rightTranslocation(paired)
+    return OppositeCluster(var1, var2)
+
+  def translocationRearranged(self, paired):
+    """
+    Create rearranged translocations
+    """
+    var1 = self.leftTranslocationRearranged(paired)
+    var2 = self.rightTranslocationRearranged(paired)
+    return OppositeCluster(var1, var2)
+
+  def rearrangement(self, paired):
+    """
+    Create rearranged translocations and duplications
+    """
+    var1 = self.leftTranslocationRearranged(paired)
+    var2 = self.rightTranslocationRearranged(paired)
+    var3 = self.leftDuplication(paired)
+    var4 = self.rightDuplication(paired)
+    return OppositeCluster(var1, var2, var3, var4)

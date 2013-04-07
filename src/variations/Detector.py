@@ -4,15 +4,14 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
-import copy
 import re
 from collections import OrderedDict
 from datetime import date
 
-from factories.PairFactory import PairFactory
 from Variation import Variation
 from clusters.BaseCluster import BaseCluster
-from clusters.OppositeCluster import OppositeCluster
+from clusters.ImpreciseCluster import ImpreciseCluster
+from factories.PairFactory import PairFactory
 from interface.interface import *
 from resources.Read import Read
 from resources.Sample import Sample
@@ -38,10 +37,10 @@ class Detector:
     self.__start = start
     self.__end = end
     self.__variations = dict((x, []) for x in self.__sample.getReferences())
-    self.__startClusters = OrderedDict((x, OrderedDict()) for x in self.__sample.getReferences())
-    self.__endClusters = copy.deepcopy(self.__startClusters)
+    self.__clusters = OrderedDict((x, OrderedDict()) for x in self.__sample.getReferences())
     self.__oppositeClusters = []
     self.__vcfCreator = VcfCreator(refgenome.filename)
+    self.__pairFactory = PairFactory(self.__sample)
 
   def start(self):
     """
@@ -52,41 +51,42 @@ class Detector:
     # fetch paired reads (can be also singleton or unmapped mate)
     for paired in self.__sample.fetchPairs(reference=self.__reference, start=self.__start, end=self.__end):
       if paired.isSingle(): # get only SNPs and indels from single read
-        #self.getSnpIndels(paired.read())
+        self.getSnpIndels(paired.read())
         continue
 
-      #self.getSnpIndels(paired.mate())
-
+      self.getSnpIndels(paired.mate())
       variation = None
 
       if paired.isNormal():
         if paired.isRearranged():
           if paired.isInterchromosomal():
-            self.__addOppositeCluster(PairFactory.translocationRearranged(paired, self.__sample))
+            self.__addOppositeCluster(self.__pairFactory.translocationRearranged(paired))
           elif paired.hasOverlap():
-            pass#variation = PairFactory.overlapRearranged(paired, self.__sample)
+            variation = self.__pairFactory.overlapRearranged(paired)
           else:
-            pass#self.__addOppositeCluster(PairFactory.rearrangement(paired, self.__sample))
+            self.__addOppositeCluster(self.__pairFactory.rearrangement(paired))
+        elif paired.isInterchromosomal():
+          self.__addOppositeCluster(self.__pairFactory.translocation(paired))
+
+          if paired.isReadInverted():
+            variation = self.__pairFactory.inversionReadOnly(paired.read())
+          else:
+            variation = self.__pairFactory.inversionReadOnly(paired.mate())
+
+          if self.__sample.variationOutOfRegion(self.__reference, self.__start, self.__end, variation):
+            variation = None
         elif paired.isReadInverted():
-          if paired.isInterchromosomal():
-            self.__addOppositeCluster(PairFactory.translocation(paired, self.__sample))
-            #variation = PairFactory.inversionReadOnly(paired.read(), self.__sample)
-          else:
-            pass#variation = PairFactory.inversionRead(paired, self.__sample)
+          variation = self.__pairFactory.inversionRead(paired)
         elif paired.isMateInverted():
-          if paired.isInterchromosomal():
-            self.__addOppositeCluster(PairFactory.translocation(paired, self.__sample))
-            #variation = PairFactory.inversionReadOnly(paired.mate(), self.__sample)
-          else:
-            pass#variation = PairFactory.inversionMate(paired, self.__sample)
+          variation = self.__pairFactory.inversionMate(paired)
         elif paired.hasOverlap():
-          pass#variation = PairFactory.overlap(paired, self.__sample)
+          variation = self.__pairFactory.overlap(paired)
         elif paired.actualSize() < self.__sample.getMinInsertSize():
-          pass#variation = PairFactory.insertion(paired, self.__sample)
+          variation = self.__pairFactory.insertion(paired)
         elif paired.actualSize() > self.__sample.getMaxInsertSize():
-          pass#variation = PairFactory.deletion(paired, self.__sample)
+          variation = self.__pairFactory.deletion(paired)
       elif paired.isReadSplit() or paired.isMateSplit():
-        pass#print "split"
+        pass
 
       if variation: # append variation
         self.__variations[variation.getReference()].append(variation)
@@ -96,6 +96,9 @@ class Detector:
     return 0
 
   def __addOppositeCluster(self, cluster):
+    """
+    Add oposite cluster into list or extend existing one
+    """
     append = True
 
     for cluster in self.__oppositeClusters: # find overlap with another cluster
@@ -114,7 +117,7 @@ class Detector:
         variation = self.__variations[ref].pop(0)
         append = True
 
-        for cluster in self.__oppositeClusters: # find overlap with another cluster
+        for cluster in self.__oppositeClusters: # find overlap with cluster
           if cluster.process(variation): # help
             append = False
 
@@ -134,20 +137,19 @@ class Detector:
     """
     Make clusters from finded variations to join alleles together
     """
-    for ref in self.__variations: # all references
+    for ref in sorted(self.__variations, key=lambda r: self.__sample.getRefIndex(r)): # all references
       for variation in sorted(self.__variations[ref], key=lambda v: v.getStart()): # all variations
-        if Sample.variationOutOfRegion(self.__reference, self.__start, self.__end, variation):
-          continue
+        #if self.__sample.variationOutOfRegion(self.__reference, self.__start, self.__end, variation):
+        #  continue
 
         ref = variation.getReference()
-        start = variation.getStart()
-        end = variation.getEnd()
+        start = variation.getMaxStart()
+        end = variation.getMaxEnd()
         overlaps = []
         added = False
 
-        for i in range(start, end + 1): # search for overlaps with existing clusters
-          overlaps.extend(self.__startClusters[ref].get(i, []))
-          overlaps.extend(self.__endClusters[ref].get(i, []))
+        for i in range(start, end+1): # search for overlaps with existing clusters
+          overlaps.extend(self.__clusters[ref].get(i, []))
 
         processed = []
 
@@ -159,28 +161,48 @@ class Detector:
               oldStart = cluster.getStart()
               oldEnd = cluster.getEnd()
               cluster.add(variation)
-              newStart = cluster.getStart()
-              newEnd = cluster.getEnd()
-
-              if newStart != oldStart: # change start
-                self.__startClusters[ref][oldStart].remove(cluster)
-                self.__startClusters[ref][newStart] = self.__startClusters[ref].get(newStart, []) + [cluster]
-
-              if newEnd != oldEnd: # change end
-                self.__endClusters[ref][oldEnd].remove(cluster)
-                self.__endClusters[ref][newEnd] = self.__endClusters[ref].get(newEnd, []) + [cluster]
+              self.__changeClusterInterval(ref, oldStart, oldEnd, cluster.getStart(), cluster.getEnd(), cluster)
 
         if not overlaps or not added: # create new cluster
-          c = BaseCluster(ref, self.__sample)
-          c.add(variation)
-          self.__startClusters[ref][start] = self.__startClusters[ref].get(start, []) + [c]
-          self.__endClusters[ref][end] = self.__endClusters[ref].get(end, []) + [c]
+          if variation.isImprecise():
+            cluster = ImpreciseCluster(ref, self.__sample)
+          else:
+            cluster = BaseCluster(ref, self.__sample)
+
+          cluster.add(variation)
+
+          for i in range(start, end+1):
+            self.__clusters[ref][i] = self.__clusters[ref].get(i, set()) | set([cluster])
+
+  def __changeClusterInterval(self, ref, oldStart, oldEnd, newStart, newEnd, cluster):
+    """
+    Change interval where cluster belongs
+    """
+    while oldStart < newStart and oldStart <= oldEnd: # remove on left side
+      self.__clusters[ref][oldStart].remove(cluster)
+      oldStart += 1
+
+    while newStart < oldStart and newStart <= newEnd: # add into left side
+      self.__clusters[ref][newStart] = self.__clusters[ref].get(newStart, set()) | set([cluster])
+      newStart += 1
+
+    oldEnd = max(newStart, oldEnd + 1)
+
+    while oldEnd < newEnd: # add into right side
+      self.__clusters[ref][oldEnd] = self.__clusters[ref].get(oldEnd, set()) | set([cluster])
+      oldEnd += 1
+
+    newEnd = max(newEnd + 1, oldStart)
+
+    while newEnd < oldEnd: # remove on right side
+      self.__clusters[ref][newEnd].remove(cluster)
+      newEnd += 1
 
   def getSnpIndels(self, read):
     """
     Get SNPs and indels from CIGAR string and MD tag
     """
-    if self.__sample.readOutOfRegion(self.__reference, self.__start, self.__end, read):
+    if self.__sample.readOutOfRegion(self.__sample.getRefIndex(self.__reference), self.__start, self.__end, read):
       return
 
     tags = dict(read.tags)
@@ -203,7 +225,7 @@ class Detector:
         newIndex = insIndex + length
         tmpPos = insPos - 1
         refseq = self.__sample.fetchReference(read.tid, tmpPos, insPos)
-        self.__variations[refname].append(Variation(Variation.vtype.INS, refname, tmpPos, refseq + read.seq[insIndex:newIndex], refseq, Variation.mtype.CIGAR_MD, read, end=tmpPos))
+        self.__variations[refname].append(Variation(Variation.vtype.INS, refname, tmpPos, refseq + read.seq[insIndex:newIndex], refseq, Variation.mtype.CIGAR_MD, read, svlen=length))
         insIndex = newIndex
         queryIndex += length
         continue
@@ -255,11 +277,10 @@ class Detector:
             deletion += sign
             mdtag = mdtag[1:]
             newDeletion = "%s%s" % (read.seq[queryIndex], deletion)
-            delVariation = Variation(Variation.vtype.DEL, refname, pos, read.seq[queryIndex], newDeletion, Variation.mtype.CIGAR_MD, read, end=pos + len(deletion))
+            delVariation = Variation(Variation.vtype.DEL, refname, pos, read.seq[queryIndex], newDeletion, Variation.mtype.CIGAR_MD, read, svlen=len(deletion))
           else: # end of deletion
             intIndex += len(deletion)
-            #self.__variations[refname].append(delVariation)
-            self.__addVariation(delVariation)
+            self.__variations[refname].append(delVariation)
             deletion = ""
             state = Detector.faStates.START
 
@@ -284,15 +305,19 @@ class Detector:
     self.__vcfCreator.addHeader('fileDate', date.today().strftime('%Y%m%d'))
     self.__vcfCreator.addHeader('source', 'gataca')
     self.__vcfCreator.addInfo('SVTYPE', 1, 'String', 'Type of structural variant')
-    self.__vcfCreator.addInfo('SVLEN', 1, 'Integer', 'Difference in length between REF and ALT')
-    self.__vcfCreator.addInfo('EVENT', 1, 'String', 'ID of event associated to breakend')
     self.__vcfCreator.addInfo('END', 1, 'Integer', 'End position of the variant')
-    self.__vcfCreator.addInfo('DEPTH', 'A', 'Integer', 'Read depths supporting each variation in a row')
-    self.__vcfCreator.addInfo('FULLDEPTH', 1, 'Integer', 'Full read depth')
     self.__vcfCreator.addInfo('IMPRECISE', 0, 'Flag', 'Imprecise structural variation')
-    self.__vcfCreator.addInfo('CILEN', 2, 'Integer', 'Confidence interval of length')
-    self.__vcfCreator.addInfo('CIPOS', 2, 'Integer', 'Confidence interval around POS')
-    self.__vcfCreator.addInfo('CIEND', 2, 'Integer', 'Confidence interval around END')
+    self.__vcfCreator.addInfo('CILEN', 2, 'Integer', 'Confidence interval of length of inserted or deleted sequence')
+    self.__vcfCreator.addInfo('CPOS', 1, 'Integer', 'Confidence of POS')
+    self.__vcfCreator.addInfo('CEND', 1, 'Integer', 'Confidence of END')
+    self.__vcfCreator.addInfo('TRACHROM', 1, 'String', 'Chromosome of translocated sequence')
+    self.__vcfCreator.addInfo('TRAPOS', 1, 'Integer', 'Start position of translocated sequence')
+    self.__vcfCreator.addInfo('TRAEND', 1, 'Integer', 'End position of translocated sequence')
+    self.__vcfCreator.addInfo('TRACPOS', 1, 'Integer', 'Confidence of start position of translocated sequence')
+    self.__vcfCreator.addInfo('TRACEND', 1, 'Integer', 'Confidence of end position of translocated sequence')
+    self.__vcfCreator.addInfo('MAX', 1, 'Integer', 'Maximal end position of deleted sequence')
+    self.__vcfCreator.addInfo('DEPTH', 'A', 'Integer', 'Read depths supporting each variation')
+    self.__vcfCreator.addInfo('FULLDEPTH', 1, 'Integer', 'Full read depth')
     self.__vcfCreator.addAlt('DEL', 'Deletion')
     self.__vcfCreator.addAlt('INS', 'Insertion')
     self.__vcfCreator.addAlt('INV', 'Inversion')
@@ -302,9 +327,10 @@ class Detector:
     for contig in self.__sample.getRefSequences(): # add contigs
       self.__vcfCreator.addContig(contig)
 
-    for ref in self.__startClusters: # add all clusters
-      for index in sorted(self.__startClusters[ref]):
-        for cluster in self.__startClusters[ref][index]:
-          self.__vcfCreator.addRecord(cluster)
+    for ref in self.__clusters: # add all clusters
+      for index in sorted(self.__clusters[ref]):
+        for cluster in self.__clusters[ref][index]:
+          if cluster.getActualStart() == index: # print every cluster only once
+            self.__vcfCreator.addRecord(cluster)
 
     self.__vcfCreator.write(filename)

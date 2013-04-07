@@ -169,7 +169,7 @@ class Read:
       if self.__read.tid != self.__mate.tid: # another chromosome
         lengthBetween = sum(self.__reflengths[self.__read.tid:self.__mate.tid])
 
-      result = lengthBetween + self.__mate.pos - self.__readEnd
+      result = lengthBetween + self.__mate.pos - self.__readEnd - 1
 
       if self.isRearranged():
         return -(result + self.__readEnd - self.__read.pos + self.__mateEnd - self.__mate.pos)
