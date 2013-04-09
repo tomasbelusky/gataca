@@ -82,9 +82,9 @@ class Detector:
         elif paired.hasOverlap():
           variation = self.__pairFactory.overlap(paired)
         elif paired.actualSize() < self.__sample.getMinInsertSize():
-          variation = self.__pairFactory.insertion(paired)
+          self.__addOppositeCluster(self.__pairFactory.smallInsertSize(paired))
         elif paired.actualSize() > self.__sample.getMaxInsertSize():
-          variation = self.__pairFactory.deletion(paired)
+          self.__addOppositeCluster(self.__pairFactory.bigInsertSize(paired))
       elif paired.isReadSplit() or paired.isMateSplit():
         pass
 
@@ -101,11 +101,11 @@ class Detector:
     """
     append = True
 
-    for cluster in self.__oppositeClusters: # find overlap with another cluster
-      if cluster.extend(cluster):
+    for c in self.__oppositeClusters:
+      if c.extend(cluster):
         append = False
-
-    if append:
+     
+    if append: # append cluster
       self.__oppositeClusters.append(cluster)
 
   def __processOppositeClusters(self):
@@ -118,20 +118,27 @@ class Detector:
         append = True
 
         for cluster in self.__oppositeClusters: # find overlap with cluster
-          if cluster.process(variation): # help
+          if cluster.helpDecide(variation): # variation helped
             append = False
 
-        if append: # not help
+        if append: # variation didn't help
           self.__variations[ref].append(variation)
 
+    unused = set()
+    helpers = set()
+
     for cluster in self.__oppositeClusters: # get winning variations and unused variations
+      cluster.process()
       winner = cluster.getWinner()
 
-      if winner:
-        self.__variations[winner.getReference()].extend(winner)
+      if winner: # append winner
+        self.__variations[winner.getReference()].append(winner)
+        helpers |= cluster.getHelpers()
 
-      for unused in cluster.getUnused():
-        self.__variations[unused.getReference()].append(unused)
+      unused |= cluster.getUnused()
+
+    for var in unused.difference(helpers):
+      self.__variations[var.getReference()].append(var)
 
   def __makeClusters(self):
     """
@@ -139,9 +146,6 @@ class Detector:
     """
     for ref in sorted(self.__variations, key=lambda r: self.__sample.getRefIndex(r)): # all references
       for variation in sorted(self.__variations[ref], key=lambda v: v.getStart()): # all variations
-        #if self.__sample.variationOutOfRegion(self.__reference, self.__start, self.__end, variation):
-        #  continue
-
         ref = variation.getReference()
         start = variation.getMaxStart()
         end = variation.getMaxEnd()
@@ -155,21 +159,18 @@ class Detector:
 
         if overlaps: # some overlaps exists
           for cluster in overlaps: # compare similarity with all clusters
-            if cluster not in processed and cluster.compare(variation): # can add into cluster
+            if cluster not in processed and cluster.add(variation): # can add into cluster
               processed.append(cluster)
               added = True
               oldStart = cluster.getStart()
               oldEnd = cluster.getEnd()
-              cluster.add(variation)
               self.__changeClusterInterval(ref, oldStart, oldEnd, cluster.getStart(), cluster.getEnd(), cluster)
 
         if not overlaps or not added: # create new cluster
           if variation.isImprecise():
-            cluster = ImpreciseCluster(ref, self.__sample)
+            cluster = ImpreciseCluster(ref, self.__sample, variation)
           else:
-            cluster = BaseCluster(ref, self.__sample)
-
-          cluster.add(variation)
+            cluster = BaseCluster(ref, self.__sample, variation)
 
           for i in range(start, end+1):
             self.__clusters[ref][i] = self.__clusters[ref].get(i, set()) | set([cluster])
@@ -202,7 +203,7 @@ class Detector:
     """
     Get SNPs and indels from CIGAR string and MD tag
     """
-    if self.__sample.readOutOfRegion(self.__sample.getRefIndex(self.__reference), self.__start, self.__end, read):
+    if self.__sample.readOutOfRegion(self.__reference, self.__start, self.__end, read):
       return
 
     tags = dict(read.tags)
@@ -212,6 +213,7 @@ class Detector:
     queryIndex = 0
     insIndex = 0
     refname = self.__sample.getRefName(read.tid)
+    intervals = [read, Read.calculateReadEnd(read)]
 
     for operation, length in read.cigar: # look at all operations and their lengths in CIGAR
       if operation in [Read.ctype.ALIGNMENT, Read.ctype.SOFTCLIP, Read.ctype.MATCH, Read.ctype.MISMATCH]: # shift index and position
@@ -225,7 +227,10 @@ class Detector:
         newIndex = insIndex + length
         tmpPos = insPos - 1
         refseq = self.__sample.fetchReference(read.tid, tmpPos, insPos)
-        self.__variations[refname].append(Variation(Variation.vtype.INS, refname, tmpPos, refseq + read.seq[insIndex:newIndex], refseq, Variation.mtype.CIGAR_MD, read, svlen=length))
+        self.__variations[refname].append(Variation(Variation.vtype.INS, refname,
+                                                    tmpPos, refseq + read.seq[insIndex:newIndex],
+                                                    refseq, Variation.mtype.CIGAR_MD,
+                                                    info={'svlen' : length, 'intervals' : intervals}))
         insIndex = newIndex
         queryIndex += length
         continue
@@ -277,7 +282,10 @@ class Detector:
             deletion += sign
             mdtag = mdtag[1:]
             newDeletion = "%s%s" % (read.seq[queryIndex], deletion)
-            delVariation = Variation(Variation.vtype.DEL, refname, pos, read.seq[queryIndex], newDeletion, Variation.mtype.CIGAR_MD, read, svlen=len(deletion))
+            delVariation = Variation(Variation.vtype.DEL, refname, pos,
+                                     read.seq[queryIndex], newDeletion,
+                                     Variation.mtype.CIGAR_MD,
+                                     info={'svlen' : len(deletion), 'intervals' : intervals})
           else: # end of deletion
             intIndex += len(deletion)
             self.__variations[refname].append(delVariation)
@@ -285,7 +293,9 @@ class Detector:
             state = Detector.faStates.START
 
         if saveSNP: # save SNP
-          self.__variations[refname].append(Variation(Variation.vtype.SNP, refname, pos, read.seq[queryIndex], sign, Variation.mtype.CIGAR_MD, read))
+          self.__variations[refname].append(Variation(Variation.vtype.SNP, refname,
+                                            pos, read.seq[queryIndex], sign,
+                                            Variation.mtype.CIGAR_MD, info={'intervals' : intervals}))
           pos += 1
           queryIndex += 1
           intIndex += 1
@@ -316,8 +326,7 @@ class Detector:
     self.__vcfCreator.addInfo('TRACPOS', 1, 'Integer', 'Confidence of start position of translocated sequence')
     self.__vcfCreator.addInfo('TRACEND', 1, 'Integer', 'Confidence of end position of translocated sequence')
     self.__vcfCreator.addInfo('MAX', 1, 'Integer', 'Maximal end position of deleted sequence')
-    self.__vcfCreator.addInfo('DEPTH', 'A', 'Integer', 'Read depths supporting each variation')
-    self.__vcfCreator.addInfo('FULLDEPTH', 1, 'Integer', 'Full read depth')
+    self.__vcfCreator.addInfo('CONF', 'A', 'Integer', 'Confidence of each variation')
     self.__vcfCreator.addAlt('DEL', 'Deletion')
     self.__vcfCreator.addAlt('INS', 'Insertion')
     self.__vcfCreator.addAlt('INV', 'Inversion')

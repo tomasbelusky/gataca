@@ -81,6 +81,7 @@ class VcfCreator:
     else:
       output = open(name, 'w')
 
+    """
     output.write("##fileformat=VCFv4.1\n")
 
     for key, value in self.__headers: # write header
@@ -98,6 +99,7 @@ class VcfCreator:
       output.write("##ALT=<ID=%s,Description=\"%s\">\n" % (aid, description))
 
     output.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+    """
 
     for rec in self.__records: # write records
       output.write("%s\n" % rec)

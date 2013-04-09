@@ -172,6 +172,12 @@ class Sample:
     """
     return self.__reads.references
 
+  def getLengths(self):
+    """
+    Return list of reference lengths
+    """
+    return self.__reads.lengths
+
   def getRefName(self, rindex):
     """
     Return name of reference on rindex

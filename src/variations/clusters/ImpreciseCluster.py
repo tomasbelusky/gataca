@@ -5,6 +5,7 @@ __author__ = "Tomáš Beluský"
 __date__ = "04.04. 2013"
 
 import copy
+import operator
 
 from variations.clusters.AbstractCluster import AbstractCluster
 from variations.factories.JoinFactory import JoinFactory
@@ -15,23 +16,35 @@ class ImpreciseCluster(AbstractCluster):
   Represents cluster of imprecise variations
   """
 
-  def __init__(self, rname, sample):
+  def __init__(self, rname, sample, variation):
     """
     Initialize variables
     """
     AbstractCluster.__init__(self, rname, sample)
-    self._consensus = None
-    self.__type = None
-    self._joinFactory = JoinFactory(sample)
-    self.__joinFactoryRef = {Variation.vtype.INS : {Variation.vtype.INS : self._joinFactory.insertion,
-                                                    Variation.vtype.TRA : self._joinFactory.insertionTranslocation},
-                             Variation.vtype.DEL : {Variation.vtype.DEL: self._joinFactory.deletion},
-                             Variation.vtype.INV : {Variation.vtype.INV: self._joinFactory.inversion},
-                             Variation.vtype.DUP : {Variation.vtype.DUP: self._joinFactory.duplication},
-                             Variation.vtype.TRA : {Variation.vtype.TRA: self._joinFactory.translocation,
-                                                    Variation.vtype.INS : self._joinFactory.insertionTranslocation}}
+    self.__consensus = variation
+    self.__processConsensus()
+    self._createJoinTable(sample)
 
-  def join(self, first, second):
+  def __processConsensus(self):
+    if self.__consensus:
+      self.__type = self.__consensus.getType()
+      self._start = self.__consensus.getMaxStart()
+      self._end = self.__consensus.getMaxEnd()
+      self._actualStart = self.__consensus.getStart()
+      self._actualEnd = self.__consensus.getEnd()
+
+  def _createJoinTable(self, sample):
+    self._joinFactory = JoinFactory(sample)
+    self._joinFactoryRef = {}
+    self._joinFactoryRef[Variation.vtype.INS] = {Variation.vtype.INS : self._joinFactory.insertion,
+                                                 Variation.vtype.TRA : self._joinFactory.translocationInsertion}
+    self._joinFactoryRef[Variation.vtype.DEL] = {Variation.vtype.DEL : self._joinFactory.deletion}
+    self._joinFactoryRef[Variation.vtype.INV] = {Variation.vtype.INV : self._joinFactory.inversion}
+    self._joinFactoryRef[Variation.vtype.DUP] = {Variation.vtype.DUP : self._joinFactory.duplication}
+    self._joinFactoryRef[Variation.vtype.TRA] = {Variation.vtype.TRA : self._joinFactory.translocation,
+                                                 Variation.vtype.INS : self._joinFactory.translocationInsertion}
+
+  def _join(self, first, second):
     """
     Join two variations into one
     """
@@ -42,38 +55,21 @@ class ImpreciseCluster(AbstractCluster):
       firstCopy = copy.deepcopy(first)
       secondCopy = copy.deepcopy(second)
 
-    return self.__joinFactoryRef[first.getType()][second.getType()](firstCopy, secondCopy)
+    return self._joinFactoryRef[first.getType()][second.getType()](firstCopy, secondCopy)
 
-  def _process(self):
+  def add(self, variation):
     """
-    Join variations together, count start and end position
+    Try to add variation into cluster and return if it fits into cluster
     """
-    if not len(self._variations):
-      return
-
-    variations = sorted(copy.deepcopy(self._variations), key=lambda v: v.getStart())
-
-    while len(variations) > 1: # join each variation together
-      first = variations.pop(0)
-      second = variations.pop(0)
-      variations.insert(0, self.join(first, second))
-
-    self._consensus = variations.pop()
-    self.__type = self._consensus.getType()
-    self._start = self._consensus.getMaxStart()
-    self._end = self._consensus.getMaxEnd()
-    self._actualStart = self._consensus.getStart()
-
-  def compare(self, variation):
-    """
-    Compare if variation fits into actual cluster
-    """
-    if not self.__joinFactoryRef[self.__type].get(variation.getType(), None):
+    if not self._joinFactoryRef[self.__type].get(variation.getType(), None):
       return False
 
-    for var in self._variations:
-      if self.join(var, variation) is not None:
-        return True
+    newConsensus = self._join(self.__consensus, variation)
+
+    if newConsensus is not None:
+      self.__consensus = newConsensus
+      self.__processConsensus()
+      return True
 
     return False
 
@@ -81,13 +77,35 @@ class ImpreciseCluster(AbstractCluster):
     """
     Print cluster in VCF format
     """
-    if not self._consensus:
+    if not self.__consensus:
       return ""
 
-    info = self._consensus.getInfo()
-    info['fulldepth'] = self._sample.getExactCoverages(self._rindex, self._start, self._end)
+    info = self.__consensus.getInfo()
+    info['intervals'] = sorted(info['intervals'], key=operator.itemgetter(0))
+    depth = len(info['intervals'])
+    fulldepth = 0
+    intervals = {}
+
+    while info['intervals']: # get overlaped intervals
+      int1 = info['intervals'].pop(0)
+      count = 1
+
+      while info['intervals']:
+        int2 = info['intervals'].pop(0)
+
+        if (int1[0] <= int2[0] and int2[0] <= int1[1]) or (int2[0] <= int1[0] and int1[0] <= int2[1]):
+          breakends = zip(int1, int2)
+          int1 = [min(breakends[0]), max(breakends[1])]
+          count += 1
+
+      intervals[tuple(int1)] = count
+
+    for start, end in intervals: # get fulldepth in intervals
+      fulldepth += self._sample.getExactCoverages(self._rindex, start, end)
+
+    info['conf'] = round(depth / float(fulldepth), AbstractCluster.NDIGITS)
     return "%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
                                             self._actualStart,
-                                            self._consensus.getReferenceSequence(),
-                                            self._consensus.getSequence(),
+                                            self.__consensus.getReferenceSequence(),
+                                            self.__consensus.getSequence(),
                                             self.infoString(info))

@@ -12,7 +12,11 @@ class AbstractCluster:
   """
   Represents cluster of base variations
   """
+  NDIGITS = 3 # number of digits after floating point to display
   __noInfoChars = re.compile(r'[\[\]\s\']') # characters which wouldn't be printed in VCF output
+  __keysToPrint = ['imprecise', 'svtype', 'cpos', 'end', 'max',
+                   'cend', 'svlen', 'cilen', 'conf', 'trachrom',
+                   'trapos', 'tracpos', 'traend', 'tracend'] # keys that represents info in VCF
 
   def __init__(self, rname, sample):
     """
@@ -21,7 +25,6 @@ class AbstractCluster:
     self._rname = rname
     self._rindex = sample.getRefIndex(rname)
     self._sample = sample
-    self._variations = []
     self._start = 0
     self._actualStart = 0
     self._end = 0
@@ -35,12 +38,13 @@ class AbstractCluster:
 
     result = ""
 
-    for key, value in info.items(): # print common info
-      if type(value) == types.BooleanType:
-        if value:
-          result += "%s;" % (key.upper())
-      else:
-        result += "%s=%s;" % (key.upper(), self.__noInfoChars.sub('', str(value)))
+    for key in self.__keysToPrint:
+      if key in info:
+        if type(info[key]) == types.BooleanType:
+          if info[key]:
+            result += "%s;" % (key.upper())
+        else:
+          result += "%s=%s;" % (key.upper(), self.__noInfoChars.sub('', str(info[key])))
 
     return result[:-1]
 
@@ -62,31 +66,9 @@ class AbstractCluster:
     """
     return self._end
 
+  @abstractmethod
   def add(self, variation):
     """
-    Add variation into cluster
-    """
-    self._variations.append(variation)
-    self._process()
-
-  def remove(self, variation):
-    """
-    Remove variation from cluster
-    """
-    if variation in self.__variations:
-      self._variations.remove(variation)
-      self._process()
-
-  @abstractmethod
-  def _process(self):
-    """
-    Join variations together for printing them in VCF output
-    """
-    return
-
-  @abstractmethod
-  def compare(self, variation):
-    """
-    Compare if variation fits into actual cluster
+    Try to add variation into cluster and return if it fits into cluster
     """
     return False

@@ -4,6 +4,8 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.04. 2013"
 
+import sys
+
 from BaseFactory import BaseFactory
 from variations.Variation import Variation
 
@@ -45,12 +47,12 @@ class JoinFactory(BaseFactory):
       cilen = [min(info1['cilen'][0], info2['cilen'][0]), max(info1['cilen'][1], info2['cilen'][1])]
     elif 'cilen' in info1:
       cilen = info1['cilen']
-      cilen[0] = min(cilen[0], info2['svlen'])
-      cilen[1] = min(cilen[1], info2['svlen'])
+      cilen[0] = min(cilen[0], info2.get('svlen', sys.maxint))
+      cilen[1] = max(cilen[1], info2.get('svlen', 0))
     elif 'cilen' in info2:
       cilen = info2['cilen']
-      cilen[0] = min(cilen[0], info1['svlen'])
-      cilen[1] = min(cilen[1], info1['svlen'])
+      cilen[0] = min(cilen[0], info1.get('svlen', sys.maxint))
+      cilen[1] = max(cilen[1], info1.get('svlen', 0))
 
     return {'cilen' : cilen}
 
@@ -78,12 +80,6 @@ class JoinFactory(BaseFactory):
     if key in info and info[key] not in ('+', '-'):
       info[key] += plus
 
-  def __countDepth(self, info1, info2):
-    """
-    Count depth
-    """
-    return {'depth' : info1['depth'] + info2['depth']}
-
   def __countMax(self, info1, info2):
     """
     Count max position
@@ -96,6 +92,12 @@ class JoinFactory(BaseFactory):
       return {'max' : info2['max']}
     else:
       return {}
+
+  def __countIntervals(self, info1, info2):
+    """
+    Join intervals from both variations together
+    """
+    return {'intervals' : info1['intervals'] + info2['intervals']}
 
   def __boundaryVariaton(self, first, second, vtype):
     """
@@ -116,7 +118,7 @@ class JoinFactory(BaseFactory):
     self.__shiftConfidence(info1, first.getEnd() - info['end'], 'cend')
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCend(info1, info2))
-    info.update(self.__countDepth(info1, info2))
+    info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     refseq = self._sample.fetchReference(self._sample.getRefIndex(first.getReference()), pos, pos+1)
     return Variation(vtype, first.getReference(), pos, None, refseq, Variation.mtype.JOINED, info=info)
@@ -139,7 +141,7 @@ class JoinFactory(BaseFactory):
     info = {}
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCilen(info1, info2))
-    info.update(self.__countDepth(info1, info2))
+    info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return pos, info
 
@@ -171,7 +173,7 @@ class JoinFactory(BaseFactory):
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCilen(info1, info2))
     info.update(self.__countMax(info1, info2))
-    info.update(self.__countDepth(info1, info2))
+    info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.DEL, first.getReference(), pos, None, first.getReferenceSequence(), Variation.mtype.JOINED, info=info)
 
@@ -197,13 +199,15 @@ class JoinFactory(BaseFactory):
     traMaxEnd1 = info1['traend'] + (0 if info1.get('tracend', 0) == '+' else info1.get('tracend', 0))
 
     # check overlap
-    if first.getReference() != second.getReference() or info1['traend'] < traMaxPos2 or traMaxEnd1 < info2['trapos']:
+    if info1['trachrom'] != info2['trachrom'] or info1['traend'] < traMaxPos2 or traMaxEnd1 < info2['trapos']:
       return None
 
     (pos, info) = self.__insertedVariation(first, second)
 
     if pos is None:
       return None
+
+    info['trachrom'] = info1['trachrom']
 
     # count start position of translocated sequence
     info['trapos'] = max(info1['trapos'], traMaxPos2)
@@ -215,10 +219,11 @@ class JoinFactory(BaseFactory):
     self.__shiftConfidence(info1, info1['traend'] - info['traend'], 'tracend')
     info.update(self.__countCend(info1, info2, 'tracend'))
 
+    info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, first.getReference(), pos, None, second.getReferenceSequence(), Variation.mtype.JOINED, info=info)
 
-  def insertionTranslocation(self, first, second):
+  def translocationInsertion(self, first, second):
     """
     Join insertion witn translocation into new translocation
     """
@@ -227,15 +232,16 @@ class JoinFactory(BaseFactory):
     if pos is None:
       return None
 
-    if second.getType() == Variation.vtype.INS: # set insertion as first
-      tmp = copy.deepcopy(first)
-      first = copy.deepcopy(second)
-      second = tmp
+    infoTra = first.getInfo() if first.getType() == Variation.vtype.TRA else second.getInfo()
+    info['trachrom'] = infoTra['trachrom']
+    info['trapos'] = infoTra['trapos']
+    info['traend'] = infoTra['traend']
 
-    info1 = first.getInfo()
-    info2 = second.getInfo()
-    minTraLen = info2['traend'] - info2['trapos']
-    maxTraLen = (info2['traend'] + info2.get('tracend', 0)) - (info2['trapos'] + info2.get('tracpos', 0))
-    info.update(self.__countCilen(info1, {'cilen' : [minTraLen, maxTraLen]}))
+    if 'tracpos' in infoTra:
+      info['tracpos'] = infoTra['tracpos']
+
+    if 'tracend' in infoTra:
+      info['tracend'] = infoTra['tracend']
+
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, first.getReference(), pos, None, second.getReferenceSequence(), Variation.mtype.JOINED, info=info)

@@ -31,7 +31,7 @@ class Variation:
                SPLIT_READ=2,
                JOINED=3)
 
-  def __init__(self, vtype, reference, start, seq, refseq, mtype, *args, **kwargs):
+  def __init__(self, vtype, reference, start, seq, refseq, mtype, info={}):
     """
     Initialize variables
     """
@@ -42,8 +42,7 @@ class Variation:
     self.__seq = seq
     self.__refseq = refseq
     self.__clusters = []
-    self.__reads = args
-    self.__info = kwargs.get('info', kwargs)
+    self.__info = info
 
     if 'depth' not in self.__info:
       self.__info['depth'] = 1
@@ -57,6 +56,12 @@ class Variation:
         else:
           self.__seq = "%s<%s>" % (self.__refseq, self.__info['svtype'])
 
+  def getSvtype(self):
+    """
+    Return type of SV (usefull for debugging)
+    """
+    return self.__info.get('svtype', 'SNP')
+
   def contain(self, var):
     """
     Test if variation contains another variation
@@ -68,7 +73,7 @@ class Variation:
     Test if variation overlap with another variation on right side
     """
     return (self.getStart() <= var.getStart() and var.getStart() <= self.getEnd()) or \
-      (var.getStart() <= self.getStart() and self.getStart() <= var.getEnd())
+           (var.getStart() <= self.getStart() and self.getStart() <= var.getEnd())
 
   def allele(self, var):
     """
