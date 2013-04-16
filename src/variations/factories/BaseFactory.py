@@ -19,11 +19,17 @@ class BaseFactory:
     """
     Repair informations about variations (remove unused, count imprecise)
     """
-    if info.get('cpos', -1) == 0: # remove cpos
+    if info.get('cpos', -1) >= 0: # remove cpos
       del info['cpos']
 
-    if info.get('cend', -1) == 0: # remove cend
+    if info.get('cend', 1) <= 0: # remove cend
       del info['cend']
+
+    if info.get('tracpos', -1) >= 0: # remove tracpos
+      del info['tracpos']
+
+    if info.get('tracend', 1) <= 0: # remove tracend
+      del info['tracend']
 
     cilen = info.get('cilen', [-1, 1])
 

@@ -17,47 +17,52 @@ class OppositeCluster(ImpreciseCluster):
     """
     self.__variations = list(args)
     self._sample = sample
+    self.__count = len(self.__variations)
     self.__unused = set()
     self.__helpers = set()
     self.__fromClusters = set()
     self.__winner = None
     self.__others = [[] for v in self.__variations]
     self._createJoinTable(self._sample)
+    self.__reference = self.__variations[0].getReference()
 
-  def helpDecide(self, variation):
+  @property
+  def reference(self):
     """
-    Help cluster to decide which variation is true
+    Return reference
     """
-    value = False
+    return self.__reference
 
-    for index, var in enumerate(self.__variations): # try to join with all variations
-      if self._joinFactoryRef[var.getType()].get(variation.getType(), None):
-        newVariation = self._join(var, variation)
-
-        if newVariation: # joined
-          self.__variations[index] = newVariation
-          self.__others[index].append(variation)
-          value = True
-
-    return value
-
-  def extend(self, cluster):
+  @property
+  def count(self):
     """
-    Extend actual cluster by another cluster
+    Return count of variations
     """
-    value = False
-    tmp = set()
+    return self.__count
 
-    for variation in cluster.__variations: # try to join with all variations
-      tmp.add(variation)
+  def getVariations(self):
+    """
+    Return variations
+    """
+    return self.__variations
 
-      if self.helpDecide(variation):
-        value = True
+  def helpDecide(self, index, variation, fromCluster):
+    """
+    Another variationb try to help decide with variation is true
+    """
+    newVariation = None
 
-    if value:
-      self.__fromClusters |= tmp
+    if self._joinFactoryRef[self.__variations[index].getType()].get(variation.getType(), None):
+      newVariation = self._join(self.__variations[index], variation)
 
-    return value
+      if newVariation: # joined
+        if fromCluster:
+          self.__fromClusters.add(variation)
+
+        self.__variations[index] = newVariation
+        self.__others[index].append(variation)
+
+    return newVariation
 
   def process(self):
     """

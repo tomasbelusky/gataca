@@ -18,12 +18,14 @@ class Variation:
                INS=2,
                INV=3,
                DUP=4,
-               TRA=5)
+               DUT=5,
+               TRA=6)
   svtype = (# type of variation for VCF output
             "DEL",
             "INS",
             "INV",
             "DUP",
+            "DUP:TANDEM",
             "INS:TRA")
   mtype = enum(# type of method which find variation
                CIGAR_MD=0,
@@ -56,12 +58,6 @@ class Variation:
         else:
           self.__seq = "%s<%s>" % (self.__refseq, self.__info['svtype'])
 
-  def getSvtype(self):
-    """
-    Return type of SV (usefull for debugging)
-    """
-    return self.__info.get('svtype', 'SNP')
-
   def contain(self, var):
     """
     Test if variation contains another variation
@@ -86,6 +82,12 @@ class Variation:
     Return type of variation
     """
     return self.__type
+
+  def getSvtype(self):
+    """
+    Return type of SV (usefull for debugging)
+    """
+    return self.__info.get('svtype', 'SNP')
 
   def getMethod(self):
     """

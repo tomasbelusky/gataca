@@ -25,6 +25,7 @@ class AbstractCluster:
     self._rname = rname
     self._rindex = sample.getRefIndex(rname)
     self._sample = sample
+    self._reference = None
     self._start = 0
     self._actualStart = 0
     self._end = 0
@@ -47,6 +48,18 @@ class AbstractCluster:
           result += "%s=%s;" % (key.upper(), self.__noInfoChars.sub('', str(info[key])))
 
     return result[:-1]
+
+  def countConfidence(self, depth, fulldepth):
+    """
+    Count confidence
+    """
+    return round(min(1, depth / float(fulldepth)), AbstractCluster.NDIGITS) if fulldepth != 0 else 1
+
+  def getReference(self):
+    """
+    Return reference where variations are detect
+    """
+    return self._reference
 
   def getActualStart(self):
     """

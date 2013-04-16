@@ -26,21 +26,31 @@ class ImpreciseCluster(AbstractCluster):
     self._createJoinTable(sample)
 
   def __processConsensus(self):
+    """
+    Get informations from consensus sequence
+    """
     if self.__consensus:
       self.__type = self.__consensus.getType()
+      self._reference = self.__consensus.getReference()
       self._start = self.__consensus.getMaxStart()
       self._end = self.__consensus.getMaxEnd()
       self._actualStart = self.__consensus.getStart()
       self._actualEnd = self.__consensus.getEnd()
 
   def _createJoinTable(self, sample):
+    """
+    Create table of joining variations
+    """
     self._joinFactory = JoinFactory(sample)
     self._joinFactoryRef = {}
     self._joinFactoryRef[Variation.vtype.INS] = {Variation.vtype.INS : self._joinFactory.insertion,
                                                  Variation.vtype.TRA : self._joinFactory.translocationInsertion}
     self._joinFactoryRef[Variation.vtype.DEL] = {Variation.vtype.DEL : self._joinFactory.deletion}
     self._joinFactoryRef[Variation.vtype.INV] = {Variation.vtype.INV : self._joinFactory.inversion}
-    self._joinFactoryRef[Variation.vtype.DUP] = {Variation.vtype.DUP : self._joinFactory.duplication}
+    self._joinFactoryRef[Variation.vtype.DUP] = {Variation.vtype.DUP : self._joinFactory.duplication,
+                                                 Variation.vtype.DUT : self._joinFactory.tandemDuplication}
+    self._joinFactoryRef[Variation.vtype.DUT] = {Variation.vtype.DUT : self._joinFactory.tandemDuplication,
+                                                 Variation.vtype.DUP : self._joinFactory.tandemDuplication}
     self._joinFactoryRef[Variation.vtype.TRA] = {Variation.vtype.TRA : self._joinFactory.translocation,
                                                  Variation.vtype.INS : self._joinFactory.translocationInsertion}
 
@@ -90,9 +100,7 @@ class ImpreciseCluster(AbstractCluster):
       int1 = info['intervals'].pop(0)
       count = 1
 
-      while info['intervals']:
-        int2 = info['intervals'].pop(0)
-
+      for int2 in info['intervals']:
         if (int1[0] <= int2[0] and int2[0] <= int1[1]) or (int2[0] <= int1[0] and int1[0] <= int2[1]):
           breakends = zip(int1, int2)
           int1 = [min(breakends[0]), max(breakends[1])]
@@ -103,7 +111,7 @@ class ImpreciseCluster(AbstractCluster):
     for start, end in intervals: # get fulldepth in intervals
       fulldepth += self._sample.getExactCoverages(self._rindex, start, end)
 
-    info['conf'] = round(depth / float(fulldepth), AbstractCluster.NDIGITS)
+    info['conf'] = self.countConfidence(depth, fulldepth)
     return "%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
                                             self._actualStart,
                                             self.__consensus.getReferenceSequence(),

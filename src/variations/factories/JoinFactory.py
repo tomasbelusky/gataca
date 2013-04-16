@@ -44,15 +44,30 @@ class JoinFactory(BaseFactory):
     cilen = [0,0]
 
     if 'cilen' in info1 and 'cilen' in info2:
-      cilen = [min(info1['cilen'][0], info2['cilen'][0]), max(info1['cilen'][1], info2['cilen'][1])]
+      if info2['cilen'][1] == '+':
+        maxCilen = info1['cilen'][1]
+      elif info1['cilen'][1] == '+':
+        maxCilen = info2['cilen'][1]
+      else:
+        maxCilen = max(info1['cilen'][1], info2['cilen'][1])
+
+      cilen = [min(info1['cilen'][0], info2['cilen'][0]), maxCilen]
     elif 'cilen' in info1:
       cilen = info1['cilen']
       cilen[0] = min(cilen[0], info2.get('svlen', sys.maxint))
-      cilen[1] = max(cilen[1], info2.get('svlen', 0))
+
+      if info1['cilen'][1] == '+':
+        cilen[1] = max(cilen[0], info2.get('svlen', 0))
+      else:
+        cilen[1] = max(info1['cilen'][1], info2.get('svlen', 0))
     elif 'cilen' in info2:
       cilen = info2['cilen']
       cilen[0] = min(cilen[0], info1.get('svlen', sys.maxint))
-      cilen[1] = max(cilen[1], info1.get('svlen', 0))
+
+      if info2['cilen'][1] == '+':
+        cilen[1] = max(cilen[0], info1.get('svlen', 0))
+      else:
+        cilen[1] = max(info2['cilen'][1], info1.get('svlen', 0))
 
     return {'cilen' : cilen}
 
@@ -133,7 +148,7 @@ class JoinFactory(BaseFactory):
     if first.getStart() != second.getStart() and 'cpos' not in info2:
       return None, None
 
-    if info2['cpos'] != '-' and first.getStart() < (second.getStart() + info2['cpos']):
+    if info2.get('cpos', None) is None or (info2["cpos"] != "-" and first.getStart() < (second.getStart() + info2["cpos"])):
       return None, None
 
     self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
@@ -189,6 +204,12 @@ class JoinFactory(BaseFactory):
     """
     return self.__boundaryVariaton(first, second, Variation.vtype.DUP)
 
+  def tandemDuplication(self, first, second):
+    """
+    Join tandem duplications (one of them could be interspersed)
+    """
+    return self.__boundaryVariaton(first, second, Variation.vtype.DUT)
+
   def translocation(self, first, second):
     """
     Join translocations
@@ -242,6 +263,9 @@ class JoinFactory(BaseFactory):
 
     if 'tracend' in infoTra:
       info['tracend'] = infoTra['tracend']
+
+    if 'cilen' in info:
+      del info['cilen']
 
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, first.getReference(), pos, None, second.getReferenceSequence(), Variation.mtype.JOINED, info=info)

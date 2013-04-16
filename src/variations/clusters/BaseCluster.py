@@ -17,6 +17,7 @@ class BaseCluster(AbstractCluster):
     """
     AbstractCluster.__init__(self, rname, sample)
     self.__alleles = [variation]
+    self._reference = variation.getReference()
     self._start = variation.getStart()
     self._actualStart = self._start
     self._end = variation.getEnd()
@@ -50,7 +51,7 @@ class BaseCluster(AbstractCluster):
       return ""
 
     refseqs = {}
-    fulldepth = self._sample.getExactCoverages(self._rindex, self._start, self._end) + 0.0
+    fulldepth = self._sample.getExactCoverages(self._rindex, self._start, self._end)
 
     for var in self.__alleles: # get reference sequence and common info
       refseq = var.getReferenceSequence()
@@ -58,12 +59,12 @@ class BaseCluster(AbstractCluster):
       if refseq in refseqs: # reference sequence exists
         for key, value in refseqs[refseq].items():
           if key == 'depth': # add depth of allele
-            refseqs[refseq]['conf'].append(round(var.getInfo(key) / fulldepth, AbstractCluster.NDIGITS))
+            refseqs[refseq]['conf'].append(self.countConfidence(var['depth'], fulldepth))
           elif var.getInfo(key) != value: # remove not common info
             del refseqs[refseq][key]
       else: # new reference sequence
         refseqs[refseq] = var.getInfo()
-        refseqs[refseq]['conf'] = [round(refseqs[refseq]['depth'] / fulldepth, AbstractCluster.NDIGITS)]
+        refseqs[refseq]['conf'] = [self.countConfidence(refseqs[refseq]['depth'], fulldepth)]
 
     result = []
 

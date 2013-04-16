@@ -82,6 +82,7 @@ class VcfCreator:
       output = open(name, 'w')
 
     """
+    INFO: don't print in test phase
     output.write("##fileformat=VCFv4.1\n")
 
     for key, value in self.__headers: # write header
