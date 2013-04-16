@@ -143,7 +143,7 @@ class Read:
           actualCigar = []
 
         start += length
-      elif operator != Cigar.op.HARDCLIP:
+      elif operator in Cigar.sums:
         end = start + length
         actualCigar.append((operator, length))
 

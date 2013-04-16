@@ -8,6 +8,7 @@ import optparse
 import pysam
 import re
 import sys
+import os
 
 from resources.Sample import Sample
 from variations.Detector import Detector
@@ -65,7 +66,10 @@ def main(argv):
   if not insertSizeMatch:
     raise Exception("Insert size interval has bad format")
 
-  # create objects, start and write output
+  # create tmp dir and objects, start and write output
+  if not os.path.exists(Sample.TMP_PATH):
+    os.makedirs(Sample.TMP_PATH)
+
   refgenome = pysam.Fastafile(params['reference'])
   sample = Sample(params['sample'], refgenome, policy, int(insertSizeMatch.group('min')), int(insertSizeMatch.group('max')), params['dont_use_coverage'])
 

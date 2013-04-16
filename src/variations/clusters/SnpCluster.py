@@ -6,9 +6,9 @@ __date__ = "05.03. 2013"
 
 from AbstractCluster import AbstractCluster
 
-class BaseCluster(AbstractCluster):
+class SnpCluster(AbstractCluster):
   """
-  Represents cluster of base variations
+  Represents cluster of snp variations
   """
 
   def __init__(self, rname, sample, variation):

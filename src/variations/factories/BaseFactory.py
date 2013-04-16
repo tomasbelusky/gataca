@@ -15,6 +15,12 @@ class BaseFactory:
     """
     self._sample = sample
 
+  def _countMaxLength(self, tid, end):
+    """
+    Count maximal confidence for end position
+    """
+    return self._sample.getLengths()[tid] - end
+
   def _repairInfo(self, start, info):
     """
     Repair informations about variations (remove unused, count imprecise)

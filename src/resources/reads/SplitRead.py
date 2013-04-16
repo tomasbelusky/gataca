@@ -5,11 +5,13 @@ __author__ = "Tomáš Beluský"
 __date__ = "12.04. 2013"
 
 from interface.interface import *
+from Cigar import Cigar
 
 class SplitRead:
   """
   Represents read with two split parts
   """
+  MIN_PART_LENGTH = 10
 
   def __init__(self, original, strand, parts):
     """
@@ -74,6 +76,27 @@ class SplitRead:
     Test if whole read has minimal quality
     """
     return not len([part for part in self.__parts if not part.hasMinQuality()])
+
+  def hasMinLengths(self):
+    """
+    Test if parts have minimal lengths
+    """
+    fullLength = 0
+
+    for operator, length in self.__original.sam.cigar:
+      if operator == Cigar.op.SOFTCLIP:
+        if fullLength:
+          if fullLength < SplitRead.MIN_PART_LENGTH:
+            return False
+
+        fullLength = 0
+
+        if length < SplitRead.MIN_PART_LENGTH:
+          return False
+      elif operator in Cigar.sums:
+        fullLength += length
+
+    return fullLength == 0 or SplitRead.MIN_PART_LENGTH <= fullLength
 
   def hasInsertion(self):
     """

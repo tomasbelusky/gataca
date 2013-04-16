@@ -13,6 +13,7 @@ class SplitFactory(BaseFactory):
   """
   Creating factory of variations detected by split read method
   """
+
   def __init__(self, sample):
     """
     Initialize variables
@@ -57,7 +58,7 @@ class SplitFactory(BaseFactory):
     """
     info = {}
     pos = splitread.right.pos - 1
-    info['cilen'] = [splitread.left.len, "+"]
+    info['cilen'] = [splitread.left.len, splitread.right.pos]
     info['intervals'] = [[paired.read.end, paired.mate.pos], [paired.read.end, paired.mate.pos]]
     return self.__variation(Variation.vtype.INS, splitread, pos, info)
 
@@ -67,7 +68,7 @@ class SplitFactory(BaseFactory):
     """
     info = {}
     pos = splitread.left.end - 1
-    info['cilen'] = [splitread.right.len, "+"]
+    info['cilen'] = [splitread.right.len, self._countMaxLength(splitread.original.tid, splitread.left.end)]
     info['intervals'] = [[paired.read.end, paired.mate.pos], [paired.read.end, paired.mate.pos]]
     return self.__variation(Variation.vtype.INS, splitread, pos, info)
 
@@ -96,8 +97,9 @@ class SplitFactory(BaseFactory):
     Create deletion
     """
     info = {}
-    pos = splitread.right.pos - 1
-    info['svlen'] = splitread.left.end - splitread.right.pos
+    pos = splitread.left.end - 1
+    info['end'] = splitread.right.pos
+    info['svlen'] = info['end'] - pos
     info['intervals'] = [[splitread.original.pos, splitread.original.end]]
     return self.__variation(Variation.vtype.DEL, splitread, pos, info)
 
@@ -362,11 +364,11 @@ class SplitFactory(BaseFactory):
     Create translocation on left side
     """
     info = {}
-    pos = splitread.left.end - 1
+    pos = splitread.right.pos - 1
     info['trachrom'] = splitread.original.reference
-    info['trapos'] = splitread.right.pos - 1
-    info['traend'] = splitread.right.end
-    info['tracend'] = "+" if splitpair.isReadFirst() else splitpair.read.pos - info['traend']
+    info['trapos'] = splitread.left.pos - 1
+    info['traend'] = splitread.left.end
+    info['tracpos'] = splitpair.read.end - splitread.left.pos if splitpair.isReadFirst() else -info['trapos']
     info['intervals'] = [[splitread.right.pos, splitread.right.end + splitread.left.len]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
@@ -375,11 +377,11 @@ class SplitFactory(BaseFactory):
     Create translocation on right side
     """
     info = {}
-    pos = splitread.right.pos - 1
+    pos = splitread.left.end - 1
     info['trachrom'] = splitread.original.reference
-    info['trapos'] = splitread.left.pos - 1
-    info['traend'] = splitread.left.end
-    info['tracpos'] = splitpair.read.end - splitread.left.pos if splitpair.isReadFirst() else "-"
+    info['trapos'] = splitread.right.pos - 1
+    info['traend'] = splitread.right.end
+    info['tracend'] = self._countMaxCend(splitread.right.tid, info['traend']) if splitpair.isReadFirst() else splitpair.read.pos - info['traend']
     info['intervals'] = [[splitread.right.pos, splitread.right.end + splitread.left.len]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 

@@ -11,9 +11,9 @@ from variations.clusters.AbstractCluster import AbstractCluster
 from variations.factories.JoinFactory import JoinFactory
 from variations.Variation import Variation
 
-class ImpreciseCluster(AbstractCluster):
+class StructuralCluster(AbstractCluster):
   """
-  Represents cluster of imprecise variations
+  Represents cluster of structural variations
   """
 
   def __init__(self, rname, sample, variation):
@@ -108,8 +108,11 @@ class ImpreciseCluster(AbstractCluster):
 
       intervals[tuple(int1)] = count
 
+    """
+    INFO: don't count in test phase
     for start, end in intervals: # get fulldepth in intervals
       fulldepth += self._sample.getExactCoverages(self._rindex, start, end)
+    """
 
     info['conf'] = self.countConfidence(depth, fulldepth)
     return "%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,

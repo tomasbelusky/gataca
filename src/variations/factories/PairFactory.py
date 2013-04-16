@@ -45,7 +45,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     pos = paired.read.end + self._sample.getMaxInsertSize() - 1
-    info['max'] = paired.mate.pos - 1
+    info['end'] = paired.mate.pos - 1
     info['cilen'] = [paired.actualSize() - self._sample.getMaxInsertSize(), paired.actualSize() - self._sample.getMinInsertSize()]
     info['cpos'] = -self._sample.getMaxInsertSize()
     info['intervals'] = [[paired.read.end, paired.mate.pos], [paired.read.end, paired.mate.pos]]
@@ -82,8 +82,8 @@ class PairFactory(BaseFactory):
     info = {}
     pos = read.pos
     info['end'] = Read.calculateEnd(read)
-    info['cpos'] = "-"
-    info['cend'] = "+"
+    info['cpos'] = -pos
+    info['cend'] = self._countMaxLength(read.tid, info['end'])
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.INV, pos, info, read.tid, self._sample.getRefName(read.tid))
 
@@ -97,6 +97,8 @@ class PairFactory(BaseFactory):
     info['cpos'] = -self._sample.getMaxInsertSize()
     plusEnd = paired.read.end - paired.mate.end if info['end'] == paired.mate.end else 0
     info['cend'] = self._sample.getMaxInsertSize() + plusEnd
+    #smallestSize = info['end'] - pos
+    #info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']], [pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.read.tid, paired.read.reference)
 
@@ -201,11 +203,11 @@ class PairFactory(BaseFactory):
     info['traend'] = paired.mate.end
 
     if paired.mate.isInverted():
-      info['tracpos'] = "-"
+      info['tracpos'] = -info['trapos']
       info['tracend'] = self._sample.getMaxInsertSize()
     else:
       info['tracpos'] = -self._sample.getMaxInsertSize()
-      info['tracend'] = "+"
+      info['tracend'] = self._countMaxLength(paired.mate.tid, info['traend'])
 
     info['intervals'] = [[paired.mate.pos, paired.mate.end]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.read.tid, paired.read.reference)
@@ -223,9 +225,9 @@ class PairFactory(BaseFactory):
 
     if paired.read.isInverted():
       info['tracpos'] = -self._sample.getMaxInsertSize()
-      info['tracend'] = "+"
+      info['tracend'] = self._countMaxLength(paired.read.tid, info['traend'])
     else:
-      info['tracpos'] = "-"
+      info['tracpos'] = -info['trapos']
       info['tracend'] = self._sample.getMaxInsertSize()
 
     info['intervals'] = [[paired.read.pos, paired.read.end]]

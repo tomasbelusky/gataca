@@ -117,23 +117,13 @@ class Variation:
     """
     Return max lefmost index of variation
     """
-    plus = self.__info.get('cpos', 0)
-
-    if plus in ('+', '-'):
-      plus = 0
-
-    return self.__start + plus
+    return self.__start + self.__info.get('cpos', 0)
 
   def getMaxEnd(self):
     """
     Return max rightmost index of variation if exist, else return leftmost index
     """
-    plus = self.__info.get('cend', 0)
-
-    if plus in ('+', '-'):
-      plus = 0
-
-    return self.__info.get('end', self.__info.get('max', self.__start)) + plus
+    return self.__info.get('end', self.__start) + self.__info.get('cend', 0)
 
   def isImprecise(self):
     """

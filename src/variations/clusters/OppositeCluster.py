@@ -4,9 +4,9 @@
 __author__ = "Tomáš Beluský"
 __date__ = "31.03. 2013"
 
-from ImpreciseCluster import ImpreciseCluster
+from StructuralCluster import StructuralCluster
 
-class OppositeCluster(ImpreciseCluster):
+class OppositeCluster(StructuralCluster):
   """
   Represents cluster with variations where only one variation is true
   """

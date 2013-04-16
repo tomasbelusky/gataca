@@ -20,10 +20,11 @@ class Sample:
   """
   Represents sample and also hold file with reference genome
   """
-  filenameTemplate = "../tmp/%d_" % os.getpid()
-  window = 100 # length of window for getting coverage
-  core = 0.1 # core from <0,1> interval for getting insert size
-  minCoreCount = 10 # minimal count of iterms in core
+  TMP_PATH = "../tmp"
+  FILENAME_TEMPLATE = "%s/%d_" % (TMP_PATH, os.getpid())
+  WINDOW_SIZE = 100 # length of window for getting coverage
+  CORE = 0.1 # core from <0,1> interval for getting insert size
+  MIN_CORE_COUNT = 10 # minimal count of iterms in core
   reGCcontent = re.compile('[G|C]', re.I) # re for getting length of GC content
   ptype = enum(# policy type
                FR=0, # forward/reverse
@@ -94,7 +95,7 @@ class Sample:
       self.__coverage[read.tid][position] += 1
     else: # new
       self.__coverage[read.tid][position] = 1
-      self.__addGCcontent(read.tid, position, position + Sample.window)
+      self.__addGCcontent(read.tid, position, position + Sample.WINDOW_SIZE)
 
   def __addInsertSize(self, paired):
     """
@@ -111,7 +112,7 @@ class Sample:
     """
     allCount = len(self.__insertSizes)
     allHalf = int(allCount / 2)
-    coreCount = max(Sample.minCoreCount, int(allCount * Sample.core))
+    coreCount = max(Sample.MIN_CORE_COUNT, int(allCount * Sample.CORE))
 
     if allCount < coreCount: # give all values into core
       coreInsertSizes = self.__insertSizes
@@ -167,7 +168,7 @@ class Sample:
     Creating temporary files
     """
     for ref in self.__reads.references:
-      readname = "%s%s" % (Sample.filenameTemplate, ref)
+      readname = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
       readFile = open("%s.fastq" % readname, 'w')
       self.__readDescriptors[ref] = readFile
       self.__readFiles.append(readname)
@@ -180,14 +181,16 @@ class Sample:
       readFile.close()
 
     for ref in self.__usedFiles: # do remapping
-      actualRef = "%s%s" % (Sample.filenameTemplate, ref)
+      actualRef = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
 
+      """
       with open("%s.fasta" % actualRef, 'w') as refFile: # create file with actual reference
         rindex = self.getRefIndex(ref)
         refFile.write(">%s\n" % ref)
         refFile.write(self.fetchReference(rindex, 0, self.__reads.lengths[rindex]))
 
       self.__bwa.index(actualRef)
+      """
       self.__bwa.align(actualRef)
 
       with pysam.Samfile("%s.sam" % actualRef) as splitsam:
@@ -201,11 +204,11 @@ class Sample:
                                                                     read.is_unmapped,
                                                                     True))
 
-      for f in glob.glob("%s*" % actualRef): # remove temporary files
-        os.remove(f)
+      #for f in glob.glob("%s*" % actualRef): # remove temporary files
+      #  os.remove(f)
 
-    for f in glob.glob("%s*" % Sample.filenameTemplate): # remove unused temporary FASTA files
-      os.remove(f)
+    #for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTA files
+    #  os.remove(f)
 
   def preprocessing(self, reference=None, start=None, end=None):
     """
@@ -280,7 +283,7 @@ class Sample:
     """
     Get window where postiion belongs
     """
-    return int(math.floor(position / (Sample.window + 0.0))) * Sample.window
+    return int(math.floor(position / (Sample.WINDOW_SIZE + 0.0))) * Sample.WINDOW_SIZE
 
   def getMinInsertSize(self):
     """
@@ -319,7 +322,7 @@ class Sample:
     coverage = 0
     count = 0
 
-    for i in range(startPos, endPos, Sample.window):
+    for i in range(startPos, endPos, Sample.WINDOW_SIZE):
       coverage += self.__coverage[reference].get(i, 0)
       count += 1
 

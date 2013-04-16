@@ -12,8 +12,8 @@ from bx.intervals.intersection import Intersecter, Interval
 
 from interface.interface import *
 from Variation import Variation
-from clusters.BaseCluster import BaseCluster
-from clusters.ImpreciseCluster import ImpreciseCluster
+from clusters.SnpCluster import SnpCluster
+from clusters.StructuralCluster import StructuralCluster
 from factories.PairFactory import PairFactory
 from factories.SplitFactory import SplitFactory
 from resources.reads.Cigar import Cigar
@@ -253,10 +253,10 @@ class Detector:
           self.__removeInterval(self.__clusters[ref], interval.start, interval.end)
 
         if not added: # create new cluster
-          if variation.isImprecise():
-            cluster = ImpreciseCluster(ref, self.__sample, variation)
+          if variation.getType() == Variation.vtype.SNP:
+            cluster = SnpCluster(ref, self.__sample, variation)
           else:
-            cluster = BaseCluster(ref, self.__sample, variation)
+            cluster = StructuralCluster(ref, self.__sample, variation)
 
           self.__finalClusters[ref].append(cluster)
           self.__clusters[ref][(start, end)] = self.__clusters[ref].get((start, end), []) + [cluster]
@@ -276,7 +276,7 @@ class Detector:
     queryIndex = 0
     insIndex = 0
     refname = self.__sample.getRefName(read.tid)
-    intervals = [read.pos, read.end]
+    intervals = [[read.pos, read.end]]
 
     for operation, length in read.sam.cigar: # look at all operations and their lengths in CIGAR
       if operation in [Cigar.op.ALIGNMENT, Cigar.op.SOFTCLIP, Cigar.op.MATCH, Cigar.op.MISMATCH]: # shift index and position
@@ -345,10 +345,11 @@ class Detector:
             deletion += sign
             mdtag = mdtag[1:]
             newDeletion = "%s%s" % (read.sam.seq[queryIndex], deletion)
+            lenDeletion = len(deletion)
             delVariation = Variation(Variation.vtype.DEL, refname, pos,
                                      read.sam.seq[queryIndex], newDeletion,
                                      Variation.mtype.CIGAR_MD,
-                                     info={'svlen' : len(deletion), 'intervals' : intervals})
+                                     info={'svlen' : lenDeletion, 'intervals' : intervals, 'end' : pos + lenDeletion})
           else: # end of deletion
             intIndex += len(deletion)
             self.__variations[refname].append(delVariation)
@@ -388,7 +389,6 @@ class Detector:
     self.__vcfCreator.addInfo('TRAEND', 1, 'Integer', 'End position of translocated sequence')
     self.__vcfCreator.addInfo('TRACPOS', 1, 'Integer', 'Confidence of start position of translocated sequence')
     self.__vcfCreator.addInfo('TRACEND', 1, 'Integer', 'Confidence of end position of translocated sequence')
-    self.__vcfCreator.addInfo('MAX', 1, 'Integer', 'Maximal end position of deleted sequence')
     self.__vcfCreator.addInfo('CONF', 'A', 'Integer', 'Confidence of each variation')
     self.__vcfCreator.addAlt('DEL', 'Deletion')
     self.__vcfCreator.addAlt('INS', 'Insertion')

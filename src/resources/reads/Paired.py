@@ -77,7 +77,7 @@ class Paired:
     else:
       self.__type = Paired.rtype.FILTERED
 
-    if self.__splitpair and (not self.__splitpair.splitread.hasMinQuality() or self.actualSize() <= 0):
+    if self.__splitpair and (not self.__splitpair.splitread.hasMinQuality() or not self.__splitpair.splitread.hasMinLengths() or self.actualSize() <= 0):
       self.__type = Paired.rtype.FILTERED
 
   @staticmethod

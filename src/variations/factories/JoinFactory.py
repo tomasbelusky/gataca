@@ -24,16 +24,12 @@ class JoinFactory(BaseFactory):
     """
     Count confidence start position
     """
-    cpos = 0
-
-    if key in info2:
-      cpos = info2[key]
-
     if key in info1:
-      if cpos == '-':
-        cpos = info1[key]
-      elif info1[key] != '-':
-        cpos = min(cpos, info1[key])
+      cpos = min(info1[key], info2[key]) if key in info2 else info1[key]
+    elif key in info2:
+      cpos = info2[key]
+    else:
+      cpos = 0
 
     return {} if cpos == 0 else {key : cpos}
 
@@ -41,33 +37,19 @@ class JoinFactory(BaseFactory):
     """
     Count confidence length
     """
-    cilen = [0,0]
-
-    if 'cilen' in info1 and 'cilen' in info2:
-      if info2['cilen'][1] == '+':
-        maxCilen = info1['cilen'][1]
-      elif info1['cilen'][1] == '+':
-        maxCilen = info2['cilen'][1]
+    if 'cilen' in info1:
+      if 'cilen' in info2:
+        cilen = [min(info1['cilen'][0], info2['cilen'][0]), max(info1['cilen'][1], info2['cilen'][1])]
       else:
-        maxCilen = max(info1['cilen'][1], info2['cilen'][1])
-
-      cilen = [min(info1['cilen'][0], info2['cilen'][0]), maxCilen]
-    elif 'cilen' in info1:
-      cilen = info1['cilen']
-      cilen[0] = min(cilen[0], info2.get('svlen', sys.maxint))
-
-      if info1['cilen'][1] == '+':
-        cilen[1] = max(cilen[0], info2.get('svlen', 0))
-      else:
+        cilen = info1['cilen']
+        cilen[0] = min(cilen[0], info2.get('svlen', sys.maxint))
         cilen[1] = max(info1['cilen'][1], info2.get('svlen', 0))
     elif 'cilen' in info2:
       cilen = info2['cilen']
       cilen[0] = min(cilen[0], info1.get('svlen', sys.maxint))
-
-      if info2['cilen'][1] == '+':
-        cilen[1] = max(cilen[0], info1.get('svlen', 0))
-      else:
-        cilen[1] = max(info2['cilen'][1], info1.get('svlen', 0))
+      cilen[1] = max(info2['cilen'][1], info1.get('svlen', 0))
+    else:
+      cilen = [0,0]
 
     return {'cilen' : cilen}
 
@@ -75,16 +57,12 @@ class JoinFactory(BaseFactory):
     """
     Count confidence end position
     """
-    cend = 0
-
-    if key in info2:
-      cend = info2[key]
-
     if key in info1:
-      if cend == '+':
-        cend = info1[key]
-      elif info1[key] != '+':
-        cend = max(cend, info1[key])
+      cend = max(info1[key], info2[key]) if key in info2 else info1[key]
+    elif key in info2:
+      cend = info2[key]
+    else:
+      cend = 0
 
     return {} if cend == 0 else {key : cend}
 
@@ -92,7 +70,7 @@ class JoinFactory(BaseFactory):
     """
     Shift confidence position in key
     """
-    if key in info and info[key] not in ('+', '-'):
+    if key in info:
       info[key] += plus
 
   def __countMax(self, info1, info2):
@@ -108,6 +86,12 @@ class JoinFactory(BaseFactory):
     else:
       return {}
 
+  def __haveOverlap(self, first, second, info1, info2):
+    """
+    Chech if variations overlap
+    """
+    return second.getMaxStart() <= first.getEnd() and second.getStart() <= first.getMaxEnd()
+
   def __countIntervals(self, info1, info2):
     """
     Join intervals from both variations together
@@ -121,9 +105,7 @@ class JoinFactory(BaseFactory):
     info1 = first.getInfo()
     info2 = second.getInfo()
 
-    # check overlap
-    if (first.getEnd() < second.getMaxStart() and info2.get('cpos', 0) != '-') or \
-       (first.getMaxEnd() < second.getStart() and info1.get('cend', 0) != '+'):
+    if not self.__haveOverlap(first, second, info1, info2):
       return None
 
     pos = max(first.getStart(), second.getMaxStart())
@@ -145,10 +127,7 @@ class JoinFactory(BaseFactory):
     info1 = first.getInfo()
     info2 = second.getInfo()
 
-    if first.getStart() != second.getStart() and 'cpos' not in info2:
-      return None, None
-
-    if info2.get('cpos', None) is None or (info2["cpos"] != "-" and first.getStart() < (second.getStart() + info2["cpos"])):
+    if not self.__haveOverlap(first, second, info1, info2):
       return None, None
 
     self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
@@ -178,16 +157,16 @@ class JoinFactory(BaseFactory):
     info1 = first.getInfo()
     info2 = second.getInfo()
 
-    # check overlap
-    if info1.get('max', -1) < second.getStart() and (first.getStart() + info1.get('svlen', 0)) < second.getStart():
+    if not self.__haveOverlap(first, second, info1, info2):
       return None
 
     self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
     pos = second.getStart()
     info = {}
+    info['end'] = min(first.getMaxEnd(), second.getEnd())
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCilen(info1, info2))
-    info.update(self.__countMax(info1, info2))
+    info.update(self.__countCend(info1, info2))
     info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.DEL, first.getReference(), pos, None, first.getReferenceSequence(), Variation.mtype.JOINED, info=info)
@@ -216,8 +195,8 @@ class JoinFactory(BaseFactory):
     """
     info1 = first.getInfo()
     info2 = second.getInfo()
-    traMaxPos2 = info2['trapos'] + (0 if info2.get('tracpos', 0) == '-' else info2.get('tracpos', 0))
-    traMaxEnd1 = info1['traend'] + (0 if info1.get('tracend', 0) == '+' else info1.get('tracend', 0))
+    traMaxPos2 = info2['trapos'] + info2.get('tracpos', 0)
+    traMaxEnd1 = info1['traend'] + info1.get('tracend', 0)
 
     # check overlap
     if info1['trachrom'] != info2['trachrom'] or info1['traend'] < traMaxPos2 or traMaxEnd1 < info2['trapos']:

@@ -20,4 +20,5 @@ class Cigar:
              PADDING=6,
              MATCH=7,
              MISMATCH=8)
+  sums = (op.ALIGNMENT, op.INSERTION, op.MATCH, op.MISMATCH)
   abbr = 'MIDNSHP=X' # abbreviations

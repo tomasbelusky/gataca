@@ -13,10 +13,10 @@ class AbstractCluster:
   Represents cluster of base variations
   """
   NDIGITS = 3 # number of digits after floating point to display
-  __noInfoChars = re.compile(r'[\[\]\s\']') # characters which wouldn't be printed in VCF output
-  __keysToPrint = ['imprecise', 'svtype', 'cpos', 'end', 'max',
+  KEYS_TO_PRINT = ['imprecise', 'svtype', 'cpos', 'end',
                    'cend', 'svlen', 'cilen', 'conf', 'trachrom',
                    'trapos', 'tracpos', 'traend', 'tracend'] # keys that represents info in VCF
+  __noInfoChars = re.compile(r'[\[\]\s\']') # characters which wouldn't be printed in VCF output
 
   def __init__(self, rname, sample):
     """
@@ -39,7 +39,7 @@ class AbstractCluster:
 
     result = ""
 
-    for key in self.__keysToPrint:
+    for key in self.KEYS_TO_PRINT:
       if key in info:
         if type(info[key]) == types.BooleanType:
           if info[key]:
