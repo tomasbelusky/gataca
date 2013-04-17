@@ -19,8 +19,9 @@ class Settings:
   MIN_PART_LENGTH = 10 # minimal length of split parts
 
   # coverage
-  COUNT_COVERAGE = True # count and use coverage in variation detection
   WINDOW_SIZE = 100 # length of window for getting coverage
+  MIN_COVERAGE = 0 # minimal coverage
+  MAX_COVERAGE = 0 # maximal coverage
 
   # insert size
   MIN_INSERT_SIZE = 0 # minimal insert size
@@ -28,4 +29,3 @@ class Settings:
   READS_NUM = 10000 # number of reads to estimate insert size
   CORE = 0.1 # core from <0,1> interval for getting insert size
   MIN_CORE_COUNT = 10 # minimal count of iterms in core
-

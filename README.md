@@ -20,11 +20,12 @@ manual
         -l INT, --min_length=INT       minimal length of split part [10]
 
       Depth of coverage:
-        -d, --dont_use_coverage        don't use coverage in variation detection
         -w INT, --window_size=INT      size of window for getting coverage [100]
+        -v STR, --coverage=STR         interval (min,max) of accepted coverage in windows, default: estimate from reads
+
 
       Insert size:
-        -i STR, --interval=STR         interval (min-max) of accepted size between reads, default: estimate from reads
+        -i STR, --interval=STR         interval (min,max) of accepted size between reads, default: estimate from reads
         -n INT, --reads_num=INT        number of reads from which insert size will be estimated [10000]
         -c FLOAT, --core=FLOAT         core of reads_num from which minimal and maximal insert size will be estimated [0.1]
         -m INT, --min_core_count=INT   minimal number of reads in core [10]

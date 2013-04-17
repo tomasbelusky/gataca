@@ -5,6 +5,7 @@ __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
 from AbstractCluster import AbstractCluster
+from src.variations.Variation import Variation
 
 class SnpCluster(AbstractCluster):
   """
@@ -26,7 +27,7 @@ class SnpCluster(AbstractCluster):
     """
     Try to add variation into cluster and return if it fits into cluster
     """
-    if variation.getStart() == self._start and not variation.isImprecise():
+    if variation.getType() == Variation.vtype.SNP and variation.getStart() == self._start:
       append = True
 
       for i in range(len(self.__alleles)): # find same variations and increment depth
@@ -59,7 +60,7 @@ class SnpCluster(AbstractCluster):
       if refseq in refseqs: # reference sequence exists
         for key, value in refseqs[refseq].items():
           if key == 'depth': # add depth of allele
-            refseqs[refseq]['conf'].append(self.countConfidence(var['depth'], fulldepth))
+            refseqs[refseq]['conf'].append(self.countConfidence(var.getInfo('depth'), fulldepth))
           elif var.getInfo(key) != value: # remove not common info
             del refseqs[refseq][key]
       else: # new reference sequence

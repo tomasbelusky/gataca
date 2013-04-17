@@ -58,42 +58,11 @@ class Variation:
         else:
           self.__seq = "%s<%s>" % (self.__refseq, self.__info['svtype'])
 
-  def contain(self, var):
-    """
-    Test if variation contains another variation
-    """
-    return self.getStart() <= var.getStart() and var.getEnd() <= self.getEnd()
-
-  def overlap(self, var):
-    """
-    Test if variation overlap with another variation on right side
-    """
-    return (self.getStart() <= var.getStart() and var.getStart() <= self.getEnd()) or \
-      (var.getStart() <= self.getStart() and self.getStart() <= var.getEnd())
-
-  def allele(self, var):
-    """
-    Test if another variation represents another allele of actual variation
-    """
-    return self.getStart() == var.getStart() and not self.isImprecise() and not var.isImprecise()
-
   def getType(self):
     """
     Return type of variation
     """
     return self.__type
-
-  def getSvtype(self):
-    """
-    Return type of SV (usefull for debugging)
-    """
-    return self.__info.get('svtype', 'SNP')
-
-  def getMethod(self):
-    """
-    Return method which find variation
-    """
-    return self.__method
 
   def getReference(self):
     """
@@ -157,9 +126,3 @@ class Variation:
     Increment depth
     """
     self.__info['depth'] += 1
-
-  def decDepth(self):
-    """
-    Decrement depth
-    """
-    self.__info['depth'] -= 1

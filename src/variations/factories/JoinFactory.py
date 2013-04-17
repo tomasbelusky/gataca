@@ -73,19 +73,6 @@ class JoinFactory(BaseFactory):
     if key in info:
       info[key] += plus
 
-  def __countMax(self, info1, info2):
-    """
-    Count max position
-    """
-    if 'max' in info1 and 'max' in info2:
-      return {'max' : max(info1['max'], info2['max'])}
-    elif 'max' in info1:
-      return {'max' : info1['max']}
-    elif 'max' in info2:
-      return {'max' : info2['max']}
-    else:
-      return {}
-
   def __haveOverlap(self, first, second, info1, info2):
     """
     Chech if variations overlap

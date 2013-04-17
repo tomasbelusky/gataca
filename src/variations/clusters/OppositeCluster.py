@@ -17,7 +17,6 @@ class OppositeCluster(StructuralCluster):
     """
     self.__variations = list(args)
     self._sample = sample
-    self.__count = len(self.__variations)
     self.__unused = set()
     self.__helpers = set()
     self.__fromClusters = set()
@@ -25,20 +24,6 @@ class OppositeCluster(StructuralCluster):
     self.__others = [[] for v in self.__variations]
     self._createJoinTable(self._sample)
     self.__reference = self.__variations[0].getReference()
-
-  @property
-  def reference(self):
-    """
-    Return reference
-    """
-    return self.__reference
-
-  @property
-  def count(self):
-    """
-    Return count of variations
-    """
-    return self.__count
 
   def getVariations(self):
     """

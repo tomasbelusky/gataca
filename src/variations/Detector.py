@@ -53,7 +53,7 @@ class Detector:
     """
     Start finding variations
     """
-    self.__sample.preprocessing(Settings.REFERENCE, Settings.START, Settings.END)
+    self.__sample.preprocessing()
 
     # fetch paired reads (can be also singleton or unmapped mate)
     for paired in self.__sample.fetchPairs(reference=Settings.REFERENCE, start=Settings.START, end=Settings.END):

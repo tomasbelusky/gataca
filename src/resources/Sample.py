@@ -31,27 +31,18 @@ class Sample:
     """
     self.__reads = pysam.Samfile(filename)
     self.__refgenome = refgenome
-    self.__minInsertSize = Settings.MIN_INSERT_SIZE
-    self.__maxInsertSize = Settings.MAX_INSERT_SIZE
-    self.__insertSizes = []
-    self.__coverage = dict((ref, {}) for ref in range(self.__reads.nreferences))
-    self.__gcContent = {}
     self.__bwa = Bwa()
-    self.__refFiles = []
-    self.__usedFiles = set()
-    self.__readFiles = []
-    self.__readDescriptors = {}
     self.__splitParts = {}
 
-    if Settings.COUNT_COVERAGE:
-      self.__coverageRef = self.__countCoverage
-    else:
-      self.__coverageRef = self.__passCounting
+    self.__minInsertSize = Settings.MIN_INSERT_SIZE
+    self.__maxInsertSize = Settings.MAX_INSERT_SIZE
+    self.__countInsertSize = not (self.__minInsertSize and self.__maxInsertSize)
 
-    if self.__minInsertSize and self.__maxInsertSize:
-      self.__insertSizeRef = self.__passCounting
-    else:
-      self.__insertSizeRef = self.__countInsertSize
+    self.__minCoverage = Settings.MIN_COVERAGE
+    self.__maxCoverage = Settings.MAX_COVERAGE
+    self.__coverage = dict((ref, {}) for ref in range(self.__reads.nreferences))
+    self.__countCoverage = not (self.__minCoverage and self.__maxCoverage)
+    self.__gcContent = {}
 
     # set references on methods which are based on policy
     if Settings.POLICY == Read.ptype.FR:
@@ -61,68 +52,19 @@ class Sample:
       Paired._readStrand = False
       Paired._mateStrand = True
 
-  def __countCoverage(self, read):
+  def __countInterval(self, values):
     """
-    Add depth of coverage
+    Count interval of allowed values
     """
-    self.__addCoverage(read)
+    count = float(len(values))
 
-  def __countInsertSize(self, paired):
-    """
-    Add insert size
-    """
-    self.__addInsertSize(paired)
+    if not count:
+      return 0, 0
 
-  def __passCounting(self, *args):
-    """
-    Don't count coverage/insert size
-    """
-    pass
-
-  def __addCoverage(self, read):
-    """
-    Add coverage into window or create new one
-    """
-    position = self.getWindow(read.pos)
-
-    if position in self.__coverage[read.tid]: # add
-      self.__coverage[read.tid][position] += 1
-    else: # new
-      self.__coverage[read.tid][position] = 1
-      self.__addGCcontent(read.tid, position, position + Settings.WINDOW_SIZE)
-
-  def __addInsertSize(self, paired):
-    """
-    Add insert length into list
-    """
-    size = paired.size()
-
-    if size and paired.isNormal():
-      self.__insertSizes.append(size)
-
-  def __estimateInterval(self):
-    """
-    Estimate interval of insert size of properly aligned reads
-    """
-    allCount = len(self.__insertSizes)
-    allHalf = int(allCount / 2)
-    coreCount = max(Settings.MIN_CORE_COUNT, int(allCount * Settings.CORE))
-
-    if allCount < coreCount: # give all values into core
-      coreInsertSizes = self.__insertSizes
-    else: # create core from middle of values
-      coreHalf = int(math.ceil(coreCount / 2.0))
-      coreInsertSizes = sorted(self.__insertSizes)[allHalf-coreHalf:allHalf+coreHalf]
-
-    count = float(len(coreInsertSizes))
-
-    if count: # there are paired reads
-      sumIs = sum(coreInsertSizes)
-      avgIs = sumIs / count
-      tmpStdSum = sum([pow(x-avgIs, 2) for x in coreInsertSizes])
-      std3 = math.sqrt(tmpStdSum / count) * 3
-      self.__minInsertSize = int(math.ceil(avgIs - std3))
-      self.__maxInsertSize = int(math.floor(avgIs + std3))
+    average = sum(values) / count
+    tmpStdSum = sum([pow(x-average, 2) for x in values])
+    std3 = math.sqrt(tmpStdSum / count) * 3
+    return int(math.ceil(average - std3)), int(math.floor(average + std3))
 
   def __addGCcontent(self, reference, start, end):
     """
@@ -143,38 +85,103 @@ class Sample:
     for values in self.__coverage.values(): # get all coverage values
       allCoverages.extend(values.values())
 
-    if len(allCoverages): # coverage values exist
-      median = findMedian(sorted(allCoverages))
+    if not len(allCoverages): # coverage values exist
+      return
 
-      for windows in self.__gcContent.values(): # repair GC content for all windows
-        values = []
+    coverages = []
+    median = findMedian(sorted(allCoverages))
 
-        for ref, pos in windows: # get median of all windows with same GC content
-          values.append(self.__coverage[ref][pos])
+    for windows in self.__gcContent.values(): # repair GC content for all windows
+      values = []
 
-        coeficient = median / float(findMedian(sorted(values)))
+      for ref, pos in windows: # get median of all windows with same GC content
+        values.append(self.__coverage[ref][pos])
 
-        for ref, pos in windows: # repair each window with same GC content
-          self.__coverage[ref][pos] = int(round(self.__coverage[ref][pos] * coeficient))
+      coeficient = median / float(findMedian(sorted(values)))
 
-  def __openSplitFastqFiles(self):
+      for ref, pos in windows: # repair each window with same GC content
+        c = int(round(self.__coverage[ref][pos] * coeficient))
+        self.__coverage[ref][pos] = c
+        coverages.append(c)
+
+    (self.__minCoverage, self.__maxCoverage) = self.__countInterval(coverages)
+
+  def __addCoverage(self, read):
     """
-    Creating temporary FASTQ files
+    Add coverage into window or create new one
     """
-    for ref in self.__reads.references:
-      readname = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
-      readFile = open("%s.fastq" % readname, 'w')
-      self.__readDescriptors[ref] = readFile
-      self.__readFiles.append(readname)
+    position = self.getWindow(read.pos)
+
+    if position in self.__coverage[read.tid]: # add
+      self.__coverage[read.tid][position] += 1
+    else: # new
+      self.__coverage[read.tid][position] = 1
+      self.__addGCcontent(read.tid, position, position + Settings.WINDOW_SIZE)
+
+  def __estimateCoverage(self):
+    """
+    Count depth of coverages
+    """
+    for paired in self.fetchPairs(Settings.REFERENCE):
+      if paired.isSingle():
+        self.__addCoverage(paired.read)
+      else:
+        self.__addCoverage(paired.read.sam)
+        self.__addCoverage(paired.mate.sam)
+
+  def __estimateInterval(self):
+    """
+    Estimate interval of insert size of properly aligned reads
+    """
+    insertSizes = []
+    count = 0
+
+    for paired in self.fetchPairs(Settings.REFERENCE):
+      size = paired.size()
+
+      if size and paired.isNormal(): # must be normal paired with size > 0
+        insertSizes.append(size)
+        count += 1
+        print count
+
+        if count == Settings.READS_NUM: # check limit
+          break
+
+    allCount = len(insertSizes)
+    allHalf = int(allCount / 2)
+    coreCount = max(Settings.MIN_CORE_COUNT, int(allCount * Settings.CORE))
+
+    if allCount < coreCount: # give all values into core
+      coreInsertSizes = insertSizes
+    else: # create core from middle of values
+      coreHalf = int(math.ceil(coreCount / 2.0))
+      coreInsertSizes = sorted(insertSizes)[allHalf-coreHalf:allHalf+coreHalf]
+
+    (self.__minInsertSize, self.__maxInsertSize) = self.__countInterval(coreInsertSizes)
 
   def __remapping(self):
     """
     Remapping of soft-clipped sequences
     """
-    for readFile in self.__readDescriptors.values(): # close read files
+    usedFiles = set()
+    readDescriptors = {}
+
+    for ref in self.__reads.references: # create tmo FASTQ files
+      readname = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
+      readFile = open("%s.fastq" % readname, 'w')
+      readDescriptors[ref] = readFile
+
+    for paired in self.fetchPairs(Settings.REFERENCE, Settings.START, Settings.END): # fetch split reads for remapping
+      if paired.isReadSplit() or paired.isMateSplit():
+        readRef = paired.read if paired.isReadSplit() else paired.mate
+        readDescriptors[readRef.reference].write(readRef.getFastqSplits())
+        usedFiles.add(readRef.reference)
+        self.__splitParts[paired.qname] = self.__splitParts.get(paired.qname, []) + readRef.getMappedParts()
+
+    for readFile in readDescriptors.values(): # close FASTQ files
       readFile.close()
 
-    for ref in self.__usedFiles: # do remapping
+    for ref in usedFiles: # do remapping
       actualRef = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
 
       with open("%s.fasta" % actualRef, 'w') as refFile: # create file with actual reference
@@ -199,39 +206,23 @@ class Sample:
       for f in glob.glob("%s*" % actualRef): # remove temporary files
         os.remove(f)
 
-    for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTA files
+    for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTQ files
       os.remove(f)
 
-  def preprocessing(self, reference=None, start=None, end=None):
+  def preprocessing(self):
     """
     Count and repair coverage from GC content and count insert length's statistics
     """
-    self.__openSplitFastqFiles()
-
-    for paired in self.fetchPairs(reference, start, end):
-      if paired.isSingle(): # count only coverage for read
-        self.__coverageRef(paired.read)
-      else: # count coverage and insert length, save split reads into appropriate files
-        if paired.isReadSplit() or paired.isMateSplit():
-          readRef = paired.read if paired.isReadSplit() else paired.mate
-          self.__readDescriptors[readRef.reference].write(readRef.getFastqSplits())
-          self.__usedFiles.add(readRef.reference)
-          self.__splitParts[paired.qname] = self.__splitParts.get(paired.qname, []) + readRef.getMappedParts()
-        else:
-          self.__insertSizeRef(paired)
-
-        self.__coverageRef(paired.read.sam)
-        self.__coverageRef(paired.mate.sam)
-
     self.__remapping()
 
-    # repair content
-    if self.__coverageRef != self.__passCounting:
-      self.__repairGCcontent()
-
-    # estimate insert length's min and max
-    if self.__insertSizeRef != self.__passCounting:
+    if self.__countInsertSize: # estimate insert length's min and max
+      print "insert size"
       self.__estimateInterval()
+
+    if self.__countCoverage: # estimate coverage and repair GC content
+      print "coverage"
+      self.__estimateCoverage()
+      self.__repairGCcontent()
 
   def fetchReference(self, rindex, start, end):
     """
@@ -289,13 +280,17 @@ class Sample:
     """
     return self.__maxInsertSize
 
-  def getAvgInsertSize(self):
+  def getMinCoverage(self):
     """
-    Return average insert length
+    Return minimal coverage value
     """
-    return self.__avgInsertSize
+    return self.__minCoverage
 
-    return self.__avgInsertSize
+  def getMaxCoverage(self):
+    """
+    Return maximal coverage value
+    """
+    return self.__maxCoverage
 
   def getInexactCoverage(self, reference, position):
     """

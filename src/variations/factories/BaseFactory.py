@@ -45,8 +45,6 @@ class BaseFactory:
 
       del info['cilen']
 
-    if info.get('cpos', None) is None and info.get('max', -1) == start: # remove max
-      del info['max']
 
     # count imprecise
     info['imprecise'] = 'cpos' in info or \

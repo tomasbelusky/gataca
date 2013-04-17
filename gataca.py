@@ -10,6 +10,7 @@ import re
 import sys
 import os
 
+from src.interface.interface import parseInterval
 from src.interface.Settings import Settings
 from src.resources.Sample import Sample
 from src.resources.reads.Read import Read
@@ -55,25 +56,25 @@ def getParameters(argv):
   parser.add_option_group(readGroup)
 
   coverageGroup = optparse.OptionGroup(parser, "Depth of coverage")
-  coverageGroup.add_option("-d",
-                           "--dont_use_coverage",
-                           help="don't use coverage in variation detection",
-                           action="store_false",
-                           default=Settings.COUNT_COVERAGE)
   coverageGroup.add_option("-w",
                            "--window_size",
                            help="size of window for getting coverage [%default]",
                            type="int",
                            metavar="INT",
                            default=Settings.WINDOW_SIZE)
+  coverageGroup.add_option("-v",
+                           "--coverage",
+                           help="interval (min,max) of accepted coverage in windows, default: estimate from reads",
+                           metavar="STR",
+                           default="%d,%d" % (Settings.MIN_COVERAGE, Settings.MAX_COVERAGE))
   parser.add_option_group(coverageGroup)
 
   insertSizeGroup = optparse.OptionGroup(parser, "Insert size")
   insertSizeGroup.add_option("-i",
-                             "--interval",
-                             help="interval (min-max) of accepted size between reads, default: estimate from reads",
+                             "--insert_size",
+                             help="interval (min,max) of accepted size between reads, default: estimate from reads",
                              metavar="STR",
-                             default="%d-%d" % (Settings.MIN_INSERT_SIZE, Settings.MAX_INSERT_SIZE))
+                             default="%d,%d" % (Settings.MIN_INSERT_SIZE, Settings.MAX_INSERT_SIZE))
   insertSizeGroup.add_option("-n",
                              "--reads_num",
                              help="number of reads from which insert size will be estimated [%default]",
@@ -124,12 +125,6 @@ def main(argv):
     for i in [1, 2]: # start and end of reference
       region[i] = int(region[i]) if region[i] else None
 
-  # parse min and max insert size
-  insertSizeMatch = re.match(r'(?P<min>\d+)-(?P<max>\d+)', params['interval'])
-
-  if not insertSizeMatch:
-    raise Exception("Insert size interval has bad format")
-
   # create tmp dir
   if not os.path.exists(Sample.TMP_PATH):
     os.makedirs(Sample.TMP_PATH)
@@ -141,10 +136,9 @@ def main(argv):
   Settings.POLICY = Read.ptype.FR if params['policy'] == "fr" else Read.ptype.RF
   Settings.MIN_QUALITY = params['min_quality']
   Settings.MIN_PART_LENGTH = params['min_length']
-  Settings.COUNT_COVERAGE = params['dont_use_coverage']
+  (Settings.MIN_COVERAGE, Settings.MAX_COVERAGE) = parseInterval("Coverage", params['coverage'])
+  (Settings.MIN_INSERT_SIZE, Settings.MAX_INSERT_SIZE) = parseInterval("Insert size", params['insert_size'])
   Settings.WINDOW_SIZE = params['window_size']
-  Settings.MIN_INSERT_SIZE = int(insertSizeMatch.group('min'))
-  Settings.MAX_INSERT_SIZE = int(insertSizeMatch.group('max'))
   Settings.READS_NUM = params['reads_num']
   Settings.CORE = params['core']
   Settings.MIN_CORE_COUNT = params['min_core_count']
@@ -160,6 +154,8 @@ def main(argv):
 
   if not detector.start():
     detector.write(params['output'])
+
+  sample.close()
 
 if __name__ == "__main__":
   #try:
