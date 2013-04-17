@@ -10,35 +10,29 @@ import re
 import os
 import glob
 
+from src.interface.Settings import Settings
 from reads.Paired import Paired
 from reads.Read import Read
 from reads.SplitPart import SplitPart
-from tools.Bwa import Bwa
-from interface.interface import *
+from src.tools.Bwa import Bwa
+from src.interface.interface import *
 
 class Sample:
   """
   Represents sample and also hold file with reference genome
   """
-  TMP_PATH = "../tmp"
+  TMP_PATH = "tmp"
   FILENAME_TEMPLATE = "%s/%d_" % (TMP_PATH, os.getpid())
-  WINDOW_SIZE = 100 # length of window for getting coverage
-  CORE = 0.1 # core from <0,1> interval for getting insert size
-  MIN_CORE_COUNT = 10 # minimal count of iterms in core
   reGCcontent = re.compile('[G|C]', re.I) # re for getting length of GC content
-  ptype = enum(# policy type
-               FR=0, # forward/reverse
-               RF=1) # reverse/forward
 
-  def __init__(self, filename, refgenome, policy=ptype.FR, minInsertSize=0, maxInsertSize=0, countCoverage=True):
+  def __init__(self, filename, refgenome):
     """
     Initialize variables
     """
     self.__reads = pysam.Samfile(filename)
     self.__refgenome = refgenome
-    self.__policy = policy
-    self.__minInsertSize = minInsertSize
-    self.__maxInsertSize = maxInsertSize
+    self.__minInsertSize = Settings.MIN_INSERT_SIZE
+    self.__maxInsertSize = Settings.MAX_INSERT_SIZE
     self.__insertSizes = []
     self.__coverage = dict((ref, {}) for ref in range(self.__reads.nreferences))
     self.__gcContent = {}
@@ -49,7 +43,7 @@ class Sample:
     self.__readDescriptors = {}
     self.__splitParts = {}
 
-    if countCoverage:
+    if Settings.COUNT_COVERAGE:
       self.__coverageRef = self.__countCoverage
     else:
       self.__coverageRef = self.__passCounting
@@ -60,10 +54,10 @@ class Sample:
       self.__insertSizeRef = self.__countInsertSize
 
     # set references on methods which are based on policy
-    if self.__policy == Sample.ptype.FR:
+    if Settings.POLICY == Read.ptype.FR:
       Paired._readStrand = True
       Paired._mateStrand = False
-    elif self.__policy == Sample.ptype.RF:
+    elif Settings.POLICY == Read.ptype.RF:
       Paired._readStrand = False
       Paired._mateStrand = True
 
@@ -95,7 +89,7 @@ class Sample:
       self.__coverage[read.tid][position] += 1
     else: # new
       self.__coverage[read.tid][position] = 1
-      self.__addGCcontent(read.tid, position, position + Sample.WINDOW_SIZE)
+      self.__addGCcontent(read.tid, position, position + Settings.WINDOW_SIZE)
 
   def __addInsertSize(self, paired):
     """
@@ -112,7 +106,7 @@ class Sample:
     """
     allCount = len(self.__insertSizes)
     allHalf = int(allCount / 2)
-    coreCount = max(Sample.MIN_CORE_COUNT, int(allCount * Sample.CORE))
+    coreCount = max(Settings.MIN_CORE_COUNT, int(allCount * Settings.CORE))
 
     if allCount < coreCount: # give all values into core
       coreInsertSizes = self.__insertSizes
@@ -165,7 +159,7 @@ class Sample:
 
   def __openSplitFastqFiles(self):
     """
-    Creating temporary files
+    Creating temporary FASTQ files
     """
     for ref in self.__reads.references:
       readname = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
@@ -183,14 +177,12 @@ class Sample:
     for ref in self.__usedFiles: # do remapping
       actualRef = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
 
-      """
       with open("%s.fasta" % actualRef, 'w') as refFile: # create file with actual reference
         rindex = self.getRefIndex(ref)
         refFile.write(">%s\n" % ref)
         refFile.write(self.fetchReference(rindex, 0, self.__reads.lengths[rindex]))
 
       self.__bwa.index(actualRef)
-      """
       self.__bwa.align(actualRef)
 
       with pysam.Samfile("%s.sam" % actualRef) as splitsam:
@@ -204,11 +196,11 @@ class Sample:
                                                                     read.is_unmapped,
                                                                     True))
 
-      #for f in glob.glob("%s*" % actualRef): # remove temporary files
-      #  os.remove(f)
+      for f in glob.glob("%s*" % actualRef): # remove temporary files
+        os.remove(f)
 
-    #for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTA files
-    #  os.remove(f)
+    for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTA files
+      os.remove(f)
 
   def preprocessing(self, reference=None, start=None, end=None):
     """
@@ -283,7 +275,7 @@ class Sample:
     """
     Get window where postiion belongs
     """
-    return int(math.floor(position / (Sample.WINDOW_SIZE + 0.0))) * Sample.WINDOW_SIZE
+    return int(math.floor(position / (Settings.WINDOW_SIZE + 0.0))) * Settings.WINDOW_SIZE
 
   def getMinInsertSize(self):
     """
@@ -322,7 +314,7 @@ class Sample:
     coverage = 0
     count = 0
 
-    for i in range(startPos, endPos, Sample.WINDOW_SIZE):
+    for i in range(startPos, endPos, Settings.WINDOW_SIZE):
       coverage += self.__coverage[reference].get(i, 0)
       count += 1
 

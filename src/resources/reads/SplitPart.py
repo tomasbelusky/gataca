@@ -5,12 +5,12 @@ __author__ = "Tomáš Beluský"
 __date__ = "12.04. 2013"
 
 from Cigar import Cigar
+from src.interface.Settings import Settings
 
 class SplitPart:
   """
   Represents part of split read
   """
-  _minimalQuality = 30 # minimal quality to not be filtered out
 
   def __init__(self, pos, seq, cigar, mapq, reverse, unmapped, remapped):
     """
@@ -34,7 +34,7 @@ class SplitPart:
     """
     Test if part has minimal mapping quality
     """
-    return self.__mapq == 0 or SplitPart._minimalQuality <= self.__mapq
+    return self.__mapq == 0 or Settings.MIN_QUALITY <= self.__mapq
 
   @property
   def pos(self):

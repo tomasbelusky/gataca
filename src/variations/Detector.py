@@ -10,38 +10,31 @@ from collections import OrderedDict
 from datetime import date
 from bx.intervals.intersection import Intersecter, Interval
 
-from interface.interface import *
+from src.interface.interface import *
+from src.interface.Settings import Settings
+from src.resources.VcfCreator import VcfCreator
+from src.resources.reads.Cigar import Cigar
 from Variation import Variation
 from clusters.SnpCluster import SnpCluster
 from clusters.StructuralCluster import StructuralCluster
 from factories.PairFactory import PairFactory
 from factories.SplitFactory import SplitFactory
-from resources.reads.Cigar import Cigar
-from resources.Sample import Sample
-from resources.VcfCreator import VcfCreator
 
 class Detector:
   """
   Detector of variations
   """
-  VAR_DEVIATION = 5000 # variations around specified region will be detected
   faStates = enum(# states of FA for finding SNPs and deletions from MD tag
                   START=0,
                   MATCH=1,
                   DELETION=2)
   bases = re.compile(r'[A-Z]', re.I) # re that folds all letters
 
-  def __init__(self, sample, refgenome, policy=Sample.ptype.FR, reference=None, start=None, end=None):
+  def __init__(self, sample, refgenome):
     """
     Initialize variables
     """
     self.__sample = sample
-    self.__policy = policy
-    self.__reference = reference
-    self.__start = start
-    self.__end = end
-    self.__finalStart = self.__start - Detector.VAR_DEVIATION
-    self.__finalEnd = self.__end + Detector.VAR_DEVIATION
     self.__variations = dict((x, []) for x in self.__sample.getReferences())
 
     self.__clusters = OrderedDict((x, OrderedDict()) for x in self.__sample.getReferences())
@@ -60,10 +53,10 @@ class Detector:
     """
     Start finding variations
     """
-    self.__sample.preprocessing(self.__reference, self.__start, self.__end)
+    self.__sample.preprocessing(Settings.REFERENCE, Settings.START, Settings.END)
 
     # fetch paired reads (can be also singleton or unmapped mate)
-    for paired in self.__sample.fetchPairs(reference=self.__reference, start=self.__start, end=self.__end):
+    for paired in self.__sample.fetchPairs(reference=Settings.REFERENCE, start=Settings.START, end=Settings.END):
       if paired.isSingle(): # get only SNPs and indels from single read
         self.getSnpIndels(paired.read)
         continue
@@ -266,7 +259,7 @@ class Detector:
     """
     Get SNPs and indels from CIGAR string and MD tag
     """
-    if self.__sample.readOutOfRegion(self.__reference, self.__start, self.__end, read.sam):
+    if self.__sample.readOutOfRegion(Settings.REFERENCE, Settings.START, Settings.END, read.sam):
       return
 
     tags = dict(read.sam.tags)
@@ -402,7 +395,7 @@ class Detector:
 
     for ref in self.__finalClusters: # add all clusters
       for cluster in sorted(self.__finalClusters[ref], key=lambda c: c.getActualStart()):
-        if not self.__sample.clusterOutOfRegion(self.__reference, self.__finalStart, self.__finalEnd, cluster):
+        if not self.__sample.clusterOutOfRegion(Settings.REFERENCE, Settings.START, Settings.END, cluster):
           self.__vcfCreator.addRecord(cluster)
 
     self.__vcfCreator.write(filename)

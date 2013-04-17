@@ -10,6 +10,7 @@ class VcfCreator:
   """
   Creator of VCF output
   """
+
   def __init__(self, filename):
     """
     Initialize variables

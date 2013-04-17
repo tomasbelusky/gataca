@@ -7,7 +7,7 @@ __date__ = "05.04. 2013"
 import sys
 
 from BaseFactory import BaseFactory
-from variations.Variation import Variation
+from src.variations.Variation import Variation
 
 class JoinFactory(BaseFactory):
   """
@@ -115,6 +115,7 @@ class JoinFactory(BaseFactory):
     self.__shiftConfidence(info1, first.getEnd() - info['end'], 'cend')
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCend(info1, info2))
+    info.update(self.__countCilen(info1, info2))
     info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     refseq = self._sample.fetchReference(self._sample.getRefIndex(first.getReference()), pos, pos+1)

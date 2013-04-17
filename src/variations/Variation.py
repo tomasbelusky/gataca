@@ -6,7 +6,7 @@ __date__ = "05.03. 2013"
 
 import copy
 
-from interface.interface import *
+from src.interface.interface import *
 
 class Variation:
   """
@@ -69,7 +69,7 @@ class Variation:
     Test if variation overlap with another variation on right side
     """
     return (self.getStart() <= var.getStart() and var.getStart() <= self.getEnd()) or \
-           (var.getStart() <= self.getStart() and self.getStart() <= var.getEnd())
+      (var.getStart() <= self.getStart() and self.getStart() <= var.getEnd())
 
   def allele(self, var):
     """

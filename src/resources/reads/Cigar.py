@@ -4,7 +4,7 @@
 __author__ = "Tomáš Beluský"
 __date__ = "12.04. 2013"
 
-from interface.interface import *
+from src.interface.interface import *
 
 class Cigar:
   """
@@ -20,5 +20,6 @@ class Cigar:
              PADDING=6,
              MATCH=7,
              MISMATCH=8)
-  sums = (op.ALIGNMENT, op.INSERTION, op.MATCH, op.MISMATCH)
+  # sum of these operation's lengths give seqence length of read
+  sums = (op.ALIGNMENT, op.INSERTION, op.SOFTCLIP, op.MATCH, op.MISMATCH)
   abbr = 'MIDNSHP=X' # abbreviations

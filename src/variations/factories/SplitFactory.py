@@ -4,9 +4,9 @@
 __author__ = "Tomáš Beluský"
 __date__ = "13.04. 2013"
 
-from interface.interface import *
-from variations.Variation import Variation
-from variations.clusters.OppositeCluster import OppositeCluster
+from src.interface.interface import *
+from src.variations.Variation import Variation
+from src.variations.clusters.OppositeCluster import OppositeCluster
 from BaseFactory import BaseFactory
 
 class SplitFactory(BaseFactory):
@@ -142,6 +142,8 @@ class SplitFactory(BaseFactory):
       else:
         info['cpos'] = splitread.right.pos - pos
 
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info.get('cend', -info.get('cpos', 0))]
     info['intervals'] = [[splitread.remapped.pos, splitread.remapped.end], [splitread.remapped.pos, splitread.remapped.end]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -152,6 +154,7 @@ class SplitFactory(BaseFactory):
     info = {}
     pos = splitread.right.pos - 1
     info['end'] = splitread.left.end
+    info['svlen'] = info['end'] - pos
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUT, splitread, pos, info)
 
@@ -164,6 +167,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.left.end
     info['cend'] = (splitread.right.pos - splitread.left.pos) + (splitread.right.end - splitread.left.end)
     info['cpos'] = -info['cend']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -176,6 +181,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.left.end
     info['cend'] = splitread.right.end - info['end']
     info['cpos'] = -info['cend']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -188,6 +195,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.right.end
     info['cpos'] = splitread.left.end - pos
     info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -200,6 +209,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.left.end
     info['cpos'] = splitread.left.end - splitread.right.pos + splitread.left.len
     info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -212,6 +223,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.right.end
     info['cend'] = splitread.right.pos - splitread.left.end - splitread.right.len
     info['cpos'] = -info['cend']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -224,6 +237,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.left.end
     info['cend'] = splitread.right.end - splitread.left.end
     info['cpos'] = -info['cend']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -236,6 +251,8 @@ class SplitFactory(BaseFactory):
     info['end'] = splitread.right.end
     info['cpos'] = splitread.left.pos - pos
     info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, splitread, pos, info)
 
@@ -254,8 +271,12 @@ class SplitFactory(BaseFactory):
 
       if not (splitread.left.len % 2) and (splitread.left.len / 2) == -info['cend']:
         vtype = Variation.vtype.DUT
+
+      info['svlen'] = info['end'] - pos
     else:
       info['cpos'] = -info['cend']
+      smallestSize = info['end'] - pos
+      info['cilen'] = [smallestSize, smallestSize + info['cend']]
 
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(vtype, splitread, pos, info)
@@ -275,7 +296,11 @@ class SplitFactory(BaseFactory):
 
       if not (splitread.right.len % 2) and (splitread.right.len / 2) == -info['cend']:
         vtype = Variation.vtype.DUT
+
+      info['svlen'] = info['end'] - pos
     else:
+      smallestSize = info['end'] - pos
+      info['cilen'] = [smallestSize, smallestSize + info['cend']]
       info['cpos'] = -info['cend']
 
     info['intervals'] = [[pos, info['end']]]

@@ -4,7 +4,7 @@
 __author__ = "Tomáš Beluský"
 __date__ = "23.03. 2013"
 
-from interface.interface import *
+from src.interface.interface import *
 from Read import Read
 from SplitPair import SplitPair
 from SplitRead import SplitRead

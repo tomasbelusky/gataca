@@ -7,9 +7,9 @@ __date__ = "04.04. 2013"
 import copy
 import operator
 
-from variations.clusters.AbstractCluster import AbstractCluster
-from variations.factories.JoinFactory import JoinFactory
-from variations.Variation import Variation
+from AbstractCluster import AbstractCluster
+from src.variations.factories.JoinFactory import JoinFactory
+from src.variations.Variation import Variation
 
 class StructuralCluster(AbstractCluster):
   """

@@ -4,7 +4,8 @@
 __author__ = "Tomáš Beluský"
 __date__ = "11.04. 2013"
 
-from interface.interface import *
+from src.interface.Settings import Settings
+from src.interface.interface import *
 from SplitPart import SplitPart
 from Cigar import Cigar
 
@@ -13,6 +14,9 @@ class Read:
   Represents sequenced read
   """
   COUNT_SEPARATOR = "_"
+  ptype = enum(# policy type
+               FR=0, # forward/reverse
+               RF=1) # reverse/forward
 
   def __init__(self, read, first, strand, refnames):
     """
@@ -117,7 +121,7 @@ class Read:
     """
     Check if read has minimal quality
     """
-    return self.__read.mapq == 0 or SplitPart._minimalQuality <= self.__read.mapq
+    return self.__read.mapq == 0 or Settings.MIN_QUALITY <= self.__read.mapq
 
   def getMappedParts(self):
     """

@@ -4,9 +4,9 @@
 __author__ = "Tomáš Beluský"
 __date__ = "25.03. 2013"
 
-from resources.reads.Read import Read
-from variations.Variation import Variation
-from variations.clusters.OppositeCluster import OppositeCluster
+from src.resources.reads.Read import Read
+from src.variations.Variation import Variation
+from src.variations.clusters.OppositeCluster import OppositeCluster
 from BaseFactory import BaseFactory
 
 class PairFactory(BaseFactory):
@@ -97,8 +97,8 @@ class PairFactory(BaseFactory):
     info['cpos'] = -self._sample.getMaxInsertSize()
     plusEnd = paired.read.end - paired.mate.end if info['end'] == paired.mate.end else 0
     info['cend'] = self._sample.getMaxInsertSize() + plusEnd
-    #smallestSize = info['end'] - pos
-    #info['cilen'] = [smallestSize, smallestSize + info['cend']]
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']], [pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.read.tid, paired.read.reference)
 
@@ -112,6 +112,8 @@ class PairFactory(BaseFactory):
     info['cpos'] = -(paired.mate.end - paired.read.pos + paired.actualSize() + self._sample.getMaxInsertSize())
     plusEnd = paired.read.end - paired.mate.end if info['end'] == paired.mate.end else 0
     info['cend'] = -info['cpos'] + plusEnd
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']], [pos, info['end']]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.mate.tid, paired.read.reference)
 
@@ -125,6 +127,8 @@ class PairFactory(BaseFactory):
     info['end'] = paired.read.end + self._sample.getMinInsertSize() if overlap else paired.mate.end
     info['cend'] = paired.read.end + self._sample.getMaxInsertSize() - info['end']
     info['cpos'] = -info['cend']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[paired.mate.pos, paired.mate.end]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.read.tid, paired.read.reference)
 
@@ -138,6 +142,8 @@ class PairFactory(BaseFactory):
     pos = (paired.mate.pos - self._sample.getMinInsertSize() if overlap else paired.read.pos) - 1
     info['cpos'] = paired.mate.pos - self._sample.getMaxInsertSize() - pos
     info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[paired.read.pos, paired.read.end]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.mate.tid, paired.mate.reference)
 
@@ -151,6 +157,8 @@ class PairFactory(BaseFactory):
     pos = (paired.read.end + self._sample.getMaxInsertSize() + paired.mate.len if overlap else paired.mate.pos) - 1
     info['cpos'] = paired.read.end + self._sample.getMinInsertSize() + paired.mate.len - pos
     info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[paired.mate.pos, paired.mate.end]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.read.tid, paired.read.reference)
 
@@ -164,6 +172,8 @@ class PairFactory(BaseFactory):
     info['end'] = paired.mate.pos - self._sample.getMaxInsertSize() - paired.read.len if overlap else paired.read.end
     info['cend'] = paired.mate.pos - self._sample.getMinInsertSize() - paired.read.len - info['end']
     info['cpos'] = -info['cend']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[paired.read.pos, paired.read.end]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.mate.tid, paired.mate.reference)
 
@@ -176,6 +186,8 @@ class PairFactory(BaseFactory):
     info['end'] = paired.mate.end
     info['cpos'] = paired.actualSize() + paired.mate.len - self._sample.getMaxInsertSize()
     info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[paired.mate.pos, paired.mate.end]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.read.tid, paired.read.reference)
 
@@ -187,7 +199,9 @@ class PairFactory(BaseFactory):
     pos = paired.read.pos - 1
     info['end'] = paired.read.end
     info['cpos'] = paired.actualSize() + paired.read.len - self._sample.getMaxInsertSize()
-    info['cend'] = -paired.actualSize()
+    info['cend'] = -info['cpos']
+    smallestSize = info['end'] - pos
+    info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[paired.read.pos, paired.read.end]]
     return self.__variation(Variation.vtype.DUP, pos, info, paired.mate.tid, paired.mate.reference)
 
