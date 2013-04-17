@@ -6,6 +6,7 @@ __date__ = "05.03. 2013"
 
 from AbstractCluster import AbstractCluster
 from src.variations.Variation import Variation
+from src.interface.Settings import Settings
 
 class SnpCluster(AbstractCluster):
   """
@@ -44,7 +45,7 @@ class SnpCluster(AbstractCluster):
 
     return False
 
-  def __str__(self):
+  def toString(self):
     """
     Print cluster in VCF format
     """
@@ -55,31 +56,33 @@ class SnpCluster(AbstractCluster):
     fulldepth = self._sample.getExactCoverages(self._rindex, self._start, self._end)
 
     for var in self.__alleles: # get reference sequence and common info
+      confidence = self.countConfidence(var.getInfo('depth'), fulldepth)
+
+      if confidence < Settings.MIN_CONFIDENCE:
+        continue
+
       refseq = var.getReferenceSequence()
 
       if refseq in refseqs: # reference sequence exists
+        refseqs[refseq]['sequences'].append(var.getSequence())
+
         for key, value in refseqs[refseq].items():
-          if key == 'depth': # add depth of allele
-            refseqs[refseq]['conf'].append(self.countConfidence(var.getInfo('depth'), fulldepth))
+          if key == 'conf': # add depth of allele
+            refseqs[refseq]['conf'].append(confidence)
           elif var.getInfo(key) != value: # remove not common info
             del refseqs[refseq][key]
       else: # new reference sequence
         refseqs[refseq] = var.getInfo()
-        refseqs[refseq]['conf'] = [self.countConfidence(refseqs[refseq]['depth'], fulldepth)]
+        refseqs[refseq]['conf'] = [confidence]
+        refseqs[refseq]['sequences'] = [var.getSequence()]
 
     result = []
 
     for refseq, info in refseqs.items(): # print row for every reference sequence
-      sequences = []
-
-      for var in self.__alleles: # get alleles with same reference sequence
-        if var.getReferenceSequence() == refseq:
-          sequences.append(var.getSequence())
-
       result.append("%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
                                                      self._start,
                                                      refseq,
-                                                     ','.join(sequences),
+                                                     ','.join(info['sequences']),
                                                      self.infoString(info)))
 
     return '\n'.join(result)

@@ -71,7 +71,8 @@ class VcfCreator:
     """
     Add record with variation
     """
-    self.__records.append(record)
+    if len(record.strip()):
+      self.__records.append(record)
 
   def write(self, name):
     """

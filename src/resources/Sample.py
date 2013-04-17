@@ -34,8 +34,8 @@ class Sample:
     self.__bwa = Bwa()
     self.__splitParts = {}
 
-    self.__minInsertSize = Settings.MIN_INSERT_SIZE
-    self.__maxInsertSize = Settings.MAX_INSERT_SIZE
+    self.__minInsertSize = Settings.MIN_INSERT
+    self.__maxInsertSize = Settings.MAX_INSERT
     self.__countInsertSize = not (self.__minInsertSize and self.__maxInsertSize)
 
     self.__minCoverage = Settings.MIN_COVERAGE
@@ -52,17 +52,27 @@ class Sample:
       Paired._readStrand = False
       Paired._mateStrand = True
 
-  def __countInterval(self, values):
+  def __countInterval(self, values, core, minCount):
     """
     Count interval of allowed values
     """
-    count = float(len(values))
+    allCount = len(values)
+    allHalf = int(allCount / 2)
+    coreCount = max(minCount, int(allCount * core))
+
+    if allCount < coreCount: # give all values into core
+      coreValues = values
+    else: # create core from middle of values
+      coreHalf = int(math.ceil(coreCount / 2.0))
+      coreValues = sorted(values)[allHalf-coreHalf:allHalf+coreHalf]
+
+    count = float(len(coreValues))
 
     if not count:
       return 0, 0
 
-    average = sum(values) / count
-    tmpStdSum = sum([pow(x-average, 2) for x in values])
+    average = sum(coreValues) / count
+    tmpStdSum = sum([pow(x-average, 2) for x in coreValues])
     std3 = math.sqrt(tmpStdSum / count) * 3
     return int(math.ceil(average - std3)), int(math.floor(average + std3))
 
@@ -104,7 +114,7 @@ class Sample:
         self.__coverage[ref][pos] = c
         coverages.append(c)
 
-    (self.__minCoverage, self.__maxCoverage) = self.__countInterval(coverages)
+    (self.__minCoverage, self.__maxCoverage) = self.__countInterval(coverages, Settings.COVERAGE_CORE, Settings.MIN_COVERAGE_COUNT)
 
   def __addCoverage(self, read):
     """
@@ -142,22 +152,11 @@ class Sample:
       if size and paired.isNormal(): # must be normal paired with size > 0
         insertSizes.append(size)
         count += 1
-        print count
 
-        if count == Settings.READS_NUM: # check limit
+        if count == Settings.INSERT_READS: # check limit
           break
 
-    allCount = len(insertSizes)
-    allHalf = int(allCount / 2)
-    coreCount = max(Settings.MIN_CORE_COUNT, int(allCount * Settings.CORE))
-
-    if allCount < coreCount: # give all values into core
-      coreInsertSizes = insertSizes
-    else: # create core from middle of values
-      coreHalf = int(math.ceil(coreCount / 2.0))
-      coreInsertSizes = sorted(insertSizes)[allHalf-coreHalf:allHalf+coreHalf]
-
-    (self.__minInsertSize, self.__maxInsertSize) = self.__countInterval(coreInsertSizes)
+    (self.__minInsertSize, self.__maxInsertSize) = self.__countInterval(insertSizes, Settings.INSERT_CORE, Settings.MIN_INSERT_COUNT)
 
   def __remapping(self):
     """
@@ -176,7 +175,7 @@ class Sample:
         readRef = paired.read if paired.isReadSplit() else paired.mate
         readDescriptors[readRef.reference].write(readRef.getFastqSplits())
         usedFiles.add(readRef.reference)
-        self.__splitParts[paired.qname] = self.__splitParts.get(paired.qname, []) + readRef.getMappedParts()
+        self.__splitParts[readRef.sam.qname] = self.__splitParts.get(readRef.sam.qname, []) + readRef.getMappedParts()
 
     for readFile in readDescriptors.values(): # close FASTQ files
       readFile.close()
@@ -216,11 +215,9 @@ class Sample:
     self.__remapping()
 
     if self.__countInsertSize: # estimate insert length's min and max
-      print "insert size"
       self.__estimateInterval()
 
     if self.__countCoverage: # estimate coverage and repair GC content
-      print "coverage"
       self.__estimateCoverage()
       self.__repairGCcontent()
 

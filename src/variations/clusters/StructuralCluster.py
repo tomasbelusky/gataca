@@ -10,6 +10,7 @@ import operator
 from AbstractCluster import AbstractCluster
 from src.variations.factories.JoinFactory import JoinFactory
 from src.variations.Variation import Variation
+from src.interface.Settings import Settings
 
 class StructuralCluster(AbstractCluster):
   """
@@ -83,7 +84,7 @@ class StructuralCluster(AbstractCluster):
 
     return False
 
-  def __str__(self):
+  def toString(self):
     """
     Print cluster in VCF format
     """
@@ -112,9 +113,13 @@ class StructuralCluster(AbstractCluster):
     INFO: don't count in test phase
     for start, end in intervals: # get fulldepth in intervals
       fulldepth += self._sample.getExactCoverages(self._rindex, start, end)
+
+      info['conf'] = self.countConfidence(depth, fulldepth)
+
+      if info['conf'] < Settings.MIN_CONFIDENCE:
+        return ""
     """
 
-    info['conf'] = self.countConfidence(depth, fulldepth)
     return "%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
                                             self._actualStart,
                                             self.__consensus.getReferenceSequence(),

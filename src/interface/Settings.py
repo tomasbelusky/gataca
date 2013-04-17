@@ -22,10 +22,15 @@ class Settings:
   WINDOW_SIZE = 100 # length of window for getting coverage
   MIN_COVERAGE = 0 # minimal coverage
   MAX_COVERAGE = 0 # maximal coverage
+  COVERAGE_CORE = 0.1 # core from (0,1] interval for getting coverage
+  MIN_COVERAGE_COUNT = 1000 # minimal count of items in core for estimating coverage
 
   # insert size
-  MIN_INSERT_SIZE = 0 # minimal insert size
-  MAX_INSERT_SIZE = 0 # maximal insert size
-  READS_NUM = 10000 # number of reads to estimate insert size
-  CORE = 0.1 # core from <0,1> interval for getting insert size
-  MIN_CORE_COUNT = 10 # minimal count of iterms in core
+  MIN_INSERT = 0 # minimal insert size
+  MAX_INSERT = 0 # maximal insert size
+  INSERT_READS = 50000 # number of reads to estimate insert size
+  INSERT_CORE = 0.1 # core from (0,1] interval for getting insert size
+  MIN_INSERT_COUNT = 1000 # minimal count of items in core for estimating insert size
+
+  # variations
+  MIN_CONFIDENCE = 0.3 # minimal confidence about variation

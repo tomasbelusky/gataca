@@ -62,6 +62,7 @@ class Detector:
         continue
 
       self.getSnpIndels(paired.mate)
+      #print "start", paired.read.pos
       variation = None
 
       if paired.isNormal():
@@ -151,7 +152,7 @@ class Detector:
     """
     Remove interval if it's empty
     """
-    if intervals.get((start, end), None) is not None and len(intervals[(start, end)]):
+    if intervals.get((start, end), None) is not None and not len(intervals[(start, end)]):
       del intervals[(start, end)]
 
   def __addVariationIntoOpposite(self, var, fromCluster):
@@ -161,7 +162,7 @@ class Detector:
     ref = var.getReference()
     added = False
 
-    for interval in self.__oppositeTree[ref].find(var.getMaxStart(), var.getMaxEnd()+1):
+    for interval in self.__oppositeTree[ref].find(var.getMaxStart()-1, var.getMaxEnd()+1):
       items = self.__opposites[ref].get((interval.start, interval.end), [])
 
       for i in reversed(range(len(items))): # go through all cluster's variations
@@ -202,6 +203,7 @@ class Detector:
     for ref in self.__variations: # help clusters to decide about winning variations
       for i in range(len(self.__variations[ref])):
         variation = self.__variations[ref].pop(0)
+        #print "process", variation.getStart()
 
         if not self.__addVariationIntoOpposite(variation, False):
           self.__variations[ref].append(variation)
@@ -232,8 +234,9 @@ class Detector:
         start = variation.getMaxStart()
         end = variation.getMaxEnd()
         added = False
+        #print "make", start
 
-        for interval in self.__clusterTree[ref].find(start, end+1): # compare similarity with overlapped clusters
+        for interval in self.__clusterTree[ref].find(start-1, end+1): # compare similarity with overlapped clusters
           clusters = self.__clusters[ref].get((interval.start, interval.end), [])
 
           for i in reversed(range(len(clusters))):
@@ -284,7 +287,7 @@ class Detector:
         tmpPos = insPos - 1
         refseq = self.__sample.fetchReference(read.tid, tmpPos, insPos)
         self.__variations[refname].append(Variation(Variation.vtype.INS, refname,
-                                                    tmpPos, refseq + read.sam.seq[insIndex:newIndex],
+                                                    tmpPos, None,
                                                     refseq, Variation.mtype.CIGAR_MD,
                                                     info={'svlen' : length, 'intervals' : intervals}))
         insIndex = newIndex
@@ -296,7 +299,7 @@ class Detector:
       state = Detector.faStates.START
       intIndex = 0
       match = ""
-      deletion = ""
+      lenDeletion = 0
       saveSNP = False
       delVariation = None
 
@@ -335,18 +338,16 @@ class Detector:
                 saveSNP = True
         elif state == Detector.faStates.DELETION: # DELETION STATE -------------
           if Detector.bases.match(sign): # deleted bases
-            deletion += sign
             mdtag = mdtag[1:]
-            newDeletion = "%s%s" % (read.sam.seq[queryIndex], deletion)
-            lenDeletion = len(deletion)
+            lenDeletion += 1
             delVariation = Variation(Variation.vtype.DEL, refname, pos,
-                                     read.sam.seq[queryIndex], newDeletion,
+                                     None, read.sam.seq[queryIndex],
                                      Variation.mtype.CIGAR_MD,
                                      info={'svlen' : lenDeletion, 'intervals' : intervals, 'end' : pos + lenDeletion})
           else: # end of deletion
-            intIndex += len(deletion)
             self.__variations[refname].append(delVariation)
-            deletion = ""
+            intIndex += lenDeletion
+            lenDeletion = 0
             state = Detector.faStates.START
 
         if saveSNP: # save SNP
@@ -396,6 +397,6 @@ class Detector:
     for ref in self.__finalClusters: # add all clusters
       for cluster in sorted(self.__finalClusters[ref], key=lambda c: c.getActualStart()):
         if not self.__sample.clusterOutOfRegion(Settings.REFERENCE, Settings.START, Settings.END, cluster):
-          self.__vcfCreator.addRecord(cluster)
+          self.__vcfCreator.addRecord(cluster.toString())
 
     self.__vcfCreator.write(filename)

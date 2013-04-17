@@ -24,14 +24,3 @@ def findMedian(items):
     return items[int(half)]
   else: # even
     return (items[int(math.floor(half))] + items[int(math.ceil(half))]) / 2.0
-
-def parseInterval(value, interval):
-  """
-  Parse interval in MIN,MAX format
-  """
-  match = re.match(r'(?P<min>\d+),(?P<max>\d+)', interval)
-
-  if not match:
-    raise Exception("%s interval has bad format, should be MIN,MAX" % value)
-
-  return int(match.group('min')), int(match.group('max'))

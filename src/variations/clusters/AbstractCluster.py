@@ -85,3 +85,10 @@ class AbstractCluster:
     Try to add variation into cluster and return if it fits into cluster
     """
     return False
+
+  @abstractmethod
+  def toString(self):
+    """
+    Print cluster in VCF format
+    """
+    return ""
