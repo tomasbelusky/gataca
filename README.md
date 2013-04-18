@@ -22,13 +22,13 @@ manual
       Depth of coverage:
         -w INT, --window_size=INT         size of window for getting coverage [100]
         -c STR, --coverage=STR            interval (min,max) of accepted coverage in windows, default: estimate from reads
-        -a FLOAT, --coverage_core=FLOAT   core of windows from which minimal and maximal allowed coverage will be estimated [0.1]
+        -a FLOAT, --coverage_core=FLOAT   core of windows from which min and max allowed coverage will be estimated [0.1]
         -u INT, --min_coverage_count=INT  minimal number of windows in core [1000]
 
       Insert size:
         -i STR, --insert_size=STR         interval (min,max) of accepted size between reads, default: estimate from reads
         -n INT, --insert_reads=INT        number of reads from which insert size will be estimated [50000]
-        -e FLOAT, --insert_core=FLOAT     core of reads_num from which minimal and maximal insert size will be estimated [0.1]
+        -e FLOAT, --insert_core=FLOAT     core of reads_num from which min and max insert size will be estimated [0.1]
         -m INT, --min_insert_count=INT    minimal number of reads in core [1000]
 
       Variations:
