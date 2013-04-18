@@ -4,7 +4,6 @@
 __author__ = "Tomáš Beluský"
 __date__ = "25.03. 2013"
 
-from src.resources.reads.Read import Read
 from src.variations.Variation import Variation
 from src.variations.clusters.OppositeCluster import OppositeCluster
 from BaseFactory import BaseFactory
@@ -45,7 +44,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     pos = paired.read.end + self._sample.getMaxInsertSize() - 1
-    info['end'] = paired.mate.pos - 1
+    info['max'] = paired.mate.pos - 1
     info['cilen'] = [paired.actualSize() - self._sample.getMaxInsertSize(), paired.actualSize() - self._sample.getMinInsertSize()]
     info['cpos'] = -self._sample.getMaxInsertSize()
     info['intervals'] = [[paired.read.end, paired.mate.pos], [paired.read.end, paired.mate.pos]]
@@ -75,18 +74,6 @@ class PairFactory(BaseFactory):
     info['intervals'] = [[paired.mate.pos, paired.mate.end]]
     return self.__variation(Variation.vtype.INV, pos, info, paired.mate.tid, paired.read.reference)
 
-  def inversionReadOnly(self, read):
-    """
-    Create inversion of one read not according to it's mate
-    """
-    info = {}
-    pos = read.pos
-    info['end'] = Read.calculateEnd(read)
-    info['cpos'] = -pos
-    info['cend'] = self._countMaxLength(read.tid, info['end'])
-    info['intervals'] = [[pos, info['end']]]
-    return self.__variation(Variation.vtype.INV, pos, info, read.tid, self._sample.getRefName(read.tid))
-
   def overlap(self, paired):
     """
     Create duplication from overlap
@@ -94,9 +81,8 @@ class PairFactory(BaseFactory):
     info = {}
     pos = paired.mate.pos - 1
     info['end'] = min(paired.read.end, paired.mate.end)
-    info['cpos'] = -self._sample.getMaxInsertSize()
-    plusEnd = paired.read.end - paired.mate.end if info['end'] == paired.mate.end else 0
-    info['cend'] = self._sample.getMaxInsertSize() + plusEnd
+    info['cpos'] = -self._sample.getMaxInsertSize() - (paired.read.end - paired.mate.pos)
+    info['cend'] = -info['cpos']
     smallestSize = info['end'] - pos
     info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']], [pos, info['end']]]
@@ -109,9 +95,8 @@ class PairFactory(BaseFactory):
     info = {}
     pos = paired.mate.pos - 1
     info['end'] = min(paired.read.end, paired.mate.end)
-    info['cpos'] = -(paired.mate.end - paired.read.pos + paired.actualSize() + self._sample.getMaxInsertSize())
-    plusEnd = paired.read.end - paired.mate.end if info['end'] == paired.mate.end else 0
-    info['cend'] = -info['cpos'] + plusEnd
+    info['cend'] = paired.mate.end - paired.read.pos + self._sample.getMaxInsertSize()
+    info['cpos'] = -info['cend']
     smallestSize = info['end'] - pos
     info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']], [pos, info['end']]]
@@ -168,7 +153,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     pos = paired.read.pos - 1
-    overlap = (paired.actualSize() - (self._sample.getMaxInsertSize() + paired.read.len)) < 0
+    overlap = (self._sample.getMaxInsertSize() + paired.read.len - paired.actualSize()) < 0
     info['end'] = paired.mate.pos - self._sample.getMaxInsertSize() - paired.read.len if overlap else paired.read.end
     info['cend'] = paired.mate.pos - self._sample.getMinInsertSize() - paired.read.len - info['end']
     info['cpos'] = -info['cend']
@@ -215,14 +200,8 @@ class PairFactory(BaseFactory):
     info['trachrom'] = paired.mate.reference
     info['trapos'] = paired.mate.pos
     info['traend'] = paired.mate.end
-
-    if paired.mate.isInverted():
-      info['tracpos'] = -info['trapos']
-      info['tracend'] = self._sample.getMaxInsertSize()
-    else:
-      info['tracpos'] = -self._sample.getMaxInsertSize()
-      info['tracend'] = self._countMaxLength(paired.mate.tid, info['traend'])
-
+    info['tracpos'] = -self._sample.getMaxInsertSize()
+    info['tracend'] = self._countMaxLength(paired.mate.tid, info['traend'])
     info['intervals'] = [[paired.mate.pos, paired.mate.end]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.read.tid, paired.read.reference)
 
@@ -236,14 +215,8 @@ class PairFactory(BaseFactory):
     info['trachrom'] = paired.read.reference
     info['trapos'] = paired.read.pos
     info['traend'] = paired.read.end
-
-    if paired.read.isInverted():
-      info['tracpos'] = -self._sample.getMaxInsertSize()
-      info['tracend'] = self._countMaxLength(paired.read.tid, info['traend'])
-    else:
-      info['tracpos'] = -info['trapos']
-      info['tracend'] = self._sample.getMaxInsertSize()
-
+    info['tracpos'] = -info['trapos']
+    info['tracend'] = self._sample.getMaxInsertSize()
     info['intervals'] = [[paired.read.pos, paired.read.end]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.mate.tid, paired.mate.reference)
 

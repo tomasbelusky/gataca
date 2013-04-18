@@ -166,18 +166,15 @@ def main(argv):
   Settings.MIN_INSERT_COUNT = checkPositive("Minimal insert count", params['min_insert_count'])
   Settings.MIN_CONFIDENCE = checkInterval("Minimal confidence", "[0,1]", params['min_confidence'], 0, True, 1, True)
 
-  # create objects, start and write output
+  # create objects and start
   refgenome = pysam.Fastafile(args[1])
   sample = Sample(args[0], refgenome)
 
   if Settings.REFERENCE and Settings.REFERENCE not in sample.getReferences(): # check reference name
     raise Exception("Unknown chromosome")
 
-  detector = Detector(sample, refgenome)
-
-  if not detector.start():
-    detector.write(params['output'])
-
+  detector = Detector(sample, refgenome, params['output'])
+  detector.start()
   sample.close()
 
 if __name__ == "__main__":

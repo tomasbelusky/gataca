@@ -13,7 +13,7 @@ class AbstractCluster:
   Represents cluster of base variations
   """
   NDIGITS = 3 # number of digits after floating point to display
-  KEYS_TO_PRINT = ['imprecise', 'svtype', 'cpos', 'end',
+  KEYS_TO_PRINT = ['imprecise', 'svtype', 'cpos', 'end', 'max',
                    'cend', 'svlen', 'cilen', 'conf', 'trachrom',
                    'trapos', 'tracpos', 'traend', 'tracend'] # keys that represents info in VCF
   __noInfoChars = re.compile(r'[\[\]\s\']') # characters which wouldn't be printed in VCF output

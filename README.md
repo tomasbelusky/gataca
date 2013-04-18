@@ -27,9 +27,9 @@ manual
 
       Insert size:
         -i STR, --insert_size=STR         interval (min,max) of accepted size between reads, default: estimate from reads
-        -n INT, --insert_reads=INT        number of reads from which insert size will be estimated [10000]
+        -n INT, --insert_reads=INT        number of reads from which insert size will be estimated [50000]
         -e FLOAT, --insert_core=FLOAT     core of reads_num from which minimal and maximal insert size will be estimated [0.1]
-        -m INT, --min_insert_count=INT    minimal number of reads in core [10]
+        -m INT, --min_insert_count=INT    minimal number of reads in core [1000]
 
       Variations:
         -v FLOAT, --min_confidence=FLOAT   minimal confidence about variation [0.3]

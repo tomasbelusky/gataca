@@ -64,10 +64,10 @@ class SnpCluster(AbstractCluster):
       refseq = var.getReferenceSequence()
 
       if refseq in refseqs: # reference sequence exists
-        refseqs[refseq]['sequences'].append(var.getSequence())
-
         for key, value in refseqs[refseq].items():
-          if key == 'conf': # add depth of allele
+          if key == "sequences": # append allele sequence
+            refseqs[refseq]['sequences'].append(var.getSequence())
+          elif key == 'conf': # add depth of allele
             refseqs[refseq]['conf'].append(confidence)
           elif var.getInfo(key) != value: # remove not common info
             del refseqs[refseq][key]

@@ -25,7 +25,7 @@ class Bwa:
 
   def align(self, filename):
     """
-    Align reads in filename to reference genome stored in refname
+    Align reads to reference genome
     """
     with open(os.devnull, 'wb') as devnull:
       with open("%s.sai" % filename, "w") as sai:

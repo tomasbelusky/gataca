@@ -29,9 +29,14 @@ class SplitRead:
     self.__right = None
 
     if self.__usable:
-      self.__left = sortedParts[0]
+      if sortedParts[0].isUnmapped() or sortedParts[1].isUnmapped():
+        self.__left = self.__parts[0]
+        self.__right = self.__parts[1]
+      else:
+        self.__left = sortedParts[0]
+        self.__right = sortedParts[1]
+
       self.__left.setStrand(self.__strand)
-      self.__right = sortedParts[1]
       self.__right.setStrand(self.__strand)
       self.__remapped = self.__right if self.__right.isRemapped() else self.__left
       self.__primary = self.__left if self.__right.isRemapped() else self.__right

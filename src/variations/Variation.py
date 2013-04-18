@@ -92,7 +92,7 @@ class Variation:
     """
     Return max rightmost index of variation if exist, else return leftmost index
     """
-    return self.__info.get('end', self.__start) + self.__info.get('cend', 0)
+    return self.__info.get('end', self.__info.get('max', self.__start)) + self.__info.get('cend', 0)
 
   def isImprecise(self):
     """

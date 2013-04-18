@@ -31,7 +31,7 @@ class BaseFactory:
     if info.get('cend', 1) <= 0: # remove cend
       del info['cend']
 
-    if (start + info.get('cpos', 0)) < 0:
+    if (start + info.get('cpos', 0)) < 0: # can't be negative
       info['cpos'] = -start
 
     if info.get('tracpos', -1) >= 0: # remove tracpos
@@ -47,6 +47,9 @@ class BaseFactory:
         info['svlen'] = cilen[0]
 
       del info['cilen']
+
+    if info.get('cpos', None) is None and info.get('max', -1) == start: # remove max
+      del info['max']
 
     # count imprecise
     info['imprecise'] = 'cpos' in info or \

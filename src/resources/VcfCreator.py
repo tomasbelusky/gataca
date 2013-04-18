@@ -11,16 +11,21 @@ class VcfCreator:
   Creator of VCF output
   """
 
-  def __init__(self, filename):
+  def __init__(self, filename, output):
     """
     Initialize variables
     """
     self.__filename = filename
+    self.__outputName = output
     self.__headers = []
     self.__contigs = []
     self.__infos = []
     self.__alts = []
-    self.__records = []
+
+    if type(self.__outputName) == types.FileType:
+      self.__output = self.__outputName
+    else:
+      self.__output = open(self.__outputName, 'w')
 
   def addHeader(self, key, value):
     """
@@ -67,45 +72,38 @@ class VcfCreator:
     """
     self.__alts.append((aid, description))
 
-  def addRecord(self, record):
+  def writeHeader(self):
     """
-    Add record with variation
+    Write VCF header
     """
-    if len(record.strip()):
-      self.__records.append(record)
-
-  def write(self, name):
-    """
-    Write VCF into stdout or file
-    """
-    if type(name) == types.FileType:
-      output = name
-    else:
-      output = open(name, 'w')
-
-    """
-    INFO: don't print in test phase
-    output.write("##fileformat=VCFv4.1\n")
+    self.__output.write("##fileformat=VCFv4.1\n")
 
     for key, value in self.__headers: # write header
-      output.write("##%s=%s\n" % (key, value))
+      self.__output.write("##%s=%s\n" % (key, value))
 
-    output.write("##reference=%s\n" % self.__filename)
+    self.__output.write("##reference=%s\n" % self.__filename)
 
     for contig in self.__contigs: # write contigs
-      output.write("##contig=<%s>\n" % contig)
+      self.__output.write("##contig=<%s>\n" % contig)
 
     for iid, number, itype, description in self.__infos: # write info
-      output.write("##INFO=<ID=%s,Number=%s,Type=%s,Description=\"%s\">\n" % (iid, number, itype, description))
+      self.__output.write("##INFO=<ID=%s,Number=%s,Type=%s,Description=\"%s\">\n" % (iid, number, itype, description))
 
     for aid, description in self.__alts: # write alt
-      output.write("##ALT=<ID=%s,Description=\"%s\">\n" % (aid, description))
+      self.__output.write("##ALT=<ID=%s,Description=\"%s\">\n" % (aid, description))
 
-    output.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+    self.__output.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+
+  def writeRecord(self, record):
     """
+    Write record
+    """
+    if len(record.strip()):
+      self.__output.write("%s\n" % record)
 
-    for rec in self.__records: # write records
-      output.write("%s\n" % rec)
-
-    if type(name) != types.FileType:
-      output.close()
+  def close(self):
+    """
+    Close file
+    """
+    if type(self.__outputName) != types.FileType:
+      self.__output.close()

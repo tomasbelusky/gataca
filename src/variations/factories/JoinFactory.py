@@ -5,6 +5,7 @@ __author__ = "Tomáš Beluský"
 __date__ = "05.04. 2013"
 
 import sys
+import copy
 
 from BaseFactory import BaseFactory
 from src.variations.Variation import Variation
@@ -118,7 +119,7 @@ class JoinFactory(BaseFactory):
     if not self.__haveOverlap(first, second, info1, info2):
       return None, None
 
-    self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
+    self.__shiftConfidence(info1, second.getStart() - first.getStart(), 'cpos')
     pos = second.getStart()
     info = {}
     info.update(self.__countCpos(info1, info2))
@@ -145,16 +146,15 @@ class JoinFactory(BaseFactory):
     info1 = first.getInfo()
     info2 = second.getInfo()
 
-    if not self.__haveOverlap(first, second, info1, info2):
+    if not self.__haveOverlap(first, second, info1, info2) or (first.getStart() + info1.get('svlen', 0)) < second.getStart():
       return None
 
-    self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
+    self.__shiftConfidence(info1, second.getStart() - first.getStart(), 'cpos')
     pos = second.getStart()
     info = {}
-    info['end'] = min(first.getMaxEnd(), second.getEnd())
+    info['max'] = min(first.getEnd(), second.getEnd())
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCilen(info1, info2))
-    info.update(self.__countCend(info1, info2))
     info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.DEL, first.getReference(), pos, None, first.getReferenceSequence(), Variation.mtype.JOINED, info=info)
@@ -183,6 +183,12 @@ class JoinFactory(BaseFactory):
     """
     info1 = first.getInfo()
     info2 = second.getInfo()
+
+    if info2['trapos'] < info1['trapos']: # switch
+      tmp = copy.deepcopy(info1)
+      info1 = copy.deepcopy(info2)
+      info2 = tmp
+
     traMaxPos2 = info2['trapos'] + info2.get('tracpos', 0)
     traMaxEnd1 = info1['traend'] + info1.get('tracend', 0)
 
@@ -224,15 +230,8 @@ class JoinFactory(BaseFactory):
     info['trachrom'] = infoTra['trachrom']
     info['trapos'] = infoTra['trapos']
     info['traend'] = infoTra['traend']
-
-    if 'tracpos' in infoTra:
-      info['tracpos'] = infoTra['tracpos']
-
-    if 'tracend' in infoTra:
-      info['tracend'] = infoTra['tracend']
-
-    if 'cilen' in info:
-      del info['cilen']
-
+    info['tracpos'] = infoTra.get('tracpos', 0)
+    info['tracend'] = infoTra.get('tracend', 0)
+    del info['cilen']
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, first.getReference(), pos, None, second.getReferenceSequence(), Variation.mtype.JOINED, info=info)
