@@ -25,11 +25,12 @@ class Read:
     self.__read = read
     self.__first = first
     self.__strand = strand
+    self.__refnames = refnames
 
     if not self.isUnmapped():
       self.__end = self.calculateEnd(self.__read)
       self.__len = self.__end - self.__read.pos
-      self.__reference = refnames[self.__read.tid]
+      self.__reference = self.__refnames[self.__read.tid]
 
   @staticmethod
   def calculateEnd(read):
@@ -195,14 +196,17 @@ class Read:
 
   def getSam(self):
     """
-    Print read in SAM format
+    Return read in SAM format
     """
-    value = '%s\t%d\t%s\t%d\t%d\t' % (self.__read.qname, self.__read.flag, self.__reference, self.__read.pos, self.__read.mapq)
+    value = '%s\t%d\t%s\t%d\t%d\t' % (self.__read.qname, self.__read.flag, self.__reference, self.__read.pos + 1, self.__read.mapq)
 
-    for operator, length in self.__read.cigar:
-      value += '%d%s' % (length, Read.otype[operator])
+    if self.__read.cigar is None:
+      value += '*'
+    else:
+      for operator, length in self.__read.cigar:
+        value += '%d%s' % (length, Cigar.abbr[operator])
 
-    value += '\t%s\t%d\t%d\t%s\t%s' % (self.__read.rnext, self.__read.pnext, self.__read.tlen, self.__read.seq, self.__read.qual)
+    value += '\t%s\t%d\t%d\t%s\t%s' % (self.__refnames[self.__read.rnext], self.__read.pnext + 1, self.__read.tlen, self.__read.seq, self.__read.qual)
 
     for tagname, tagvalue in self.__read.tags:
       if isinstance(tagvalue, int):

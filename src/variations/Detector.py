@@ -4,21 +4,21 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
-import re
 import copy
+import re
 from collections import OrderedDict
 from datetime import date
-from bx.intervals.intersection import Intersecter, Interval
 
-from src.interface.interface import *
-from src.interface.Settings import Settings
-from src.resources.VcfCreator import VcfCreator
-from src.resources.reads.Cigar import Cigar
 from Variation import Variation
+from bx.intervals.intersection import Intersecter, Interval
 from clusters.SnpCluster import SnpCluster
 from clusters.StructuralCluster import StructuralCluster
 from factories.PairFactory import PairFactory
 from factories.SplitFactory import SplitFactory
+from src.interface.Settings import Settings
+from src.interface.interface import *
+from src.resources.VcfCreator import VcfCreator
+from src.resources.reads.Cigar import Cigar
 
 class Detector:
   """
@@ -44,7 +44,7 @@ class Detector:
     self.__vcfCreator.addInfo('SVTYPE', 1, 'String', 'Type of structural variant')
     self.__vcfCreator.addInfo('END', 1, 'Integer', 'End position of the variant')
     self.__vcfCreator.addInfo('IMPRECISE', 0, 'Flag', 'Imprecise structural variation')
-    self.__vcfCreator.addInfo('CILEN', 2, 'Integer', 'Confidence interval of length of inserted or deleted sequence')
+    self.__vcfCreator.addInfo('CILEN', 2, 'Integer', 'Confidence interval of length of variation')
     self.__vcfCreator.addInfo('CPOS', 1, 'Integer', 'Confidence of POS')
     self.__vcfCreator.addInfo('CEND', 1, 'Integer', 'Confidence of END')
     self.__vcfCreator.addInfo('TRACHROM', 1, 'String', 'Chromosome of translocated sequence')
@@ -239,9 +239,9 @@ class Detector:
         tmpPos = insPos - 1
         refseq = self.__sample.fetchReference(read.tid, tmpPos, insPos)
         self.__variations[refname].append(Variation(Variation.vtype.INS, refname,
-                                                    tmpPos, None,
-                                                    refseq, Variation.mtype.CIGAR_MD,
-                                                    info={'svlen' : length, 'intervals' : intervals}))
+                                          tmpPos, None,
+                                          refseq, Variation.mtype.CIGAR_MD,
+                                          info={'svlen': length, 'intervals': intervals}))
         insIndex = newIndex
         queryIndex += length
         continue
@@ -295,7 +295,7 @@ class Detector:
             delVariation = Variation(Variation.vtype.DEL, refname, pos,
                                      None, read.sam.seq[queryIndex],
                                      Variation.mtype.CIGAR_MD,
-                                     info={'svlen' : lenDeletion, 'intervals' : intervals, 'end' : pos + lenDeletion})
+                                     info={'svlen': lenDeletion, 'intervals': intervals, 'end': pos + lenDeletion})
           else: # end of deletion
             self.__variations[refname].append(delVariation)
             intIndex += lenDeletion
@@ -305,7 +305,7 @@ class Detector:
         if saveSNP: # save SNP
           self.__variations[refname].append(Variation(Variation.vtype.SNP, refname,
                                             pos, read.sam.seq[queryIndex], sign,
-                                            Variation.mtype.CIGAR_MD, info={'intervals' : intervals}))
+                                            Variation.mtype.CIGAR_MD, info={'intervals': intervals}))
           pos += 1
           queryIndex += 1
           intIndex += 1
@@ -392,7 +392,7 @@ class Detector:
         elif paired.splitpair.splitread.hasGap():
           self.__addOppositeCluster(self.__splitFactory.gap(paired))
         elif paired.splitpair.splitread.hasOverlap():
-          self.__addOppositeCluster(self.__splitFactory.overlapParts(paired.splitpair.splitread))
+          variation = self.__splitFactory.overlapParts(paired.splitpair.splitread)
         elif paired.splitpair.splitread.hasInsertion():
           variation = self.__splitFactory.normalInsertion(paired.splitpair.splitread)
 

@@ -1,11 +1,9 @@
 # python executables
 *.py[cod]
 
-# SAM files
-*.sam
-
 # directories
 inputs
 outputs
 nbproject
 tmp
+statistics/

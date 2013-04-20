@@ -24,3 +24,22 @@ def findMedian(items):
     return items[int(half)]
   else: # even
     return (items[int(math.floor(half))] + items[int(math.ceil(half))]) / 2.0
+
+def parseRegion(string):
+  """
+  Parse region of "chr:start-end" format
+  """
+  region = [None, None, None]
+
+  if string: # parse region
+    regionMatch = re.match(r'^([^:]*)(?::([0-9]*)(?:-([0-9]*))?)?$', string)
+
+    if not regionMatch:
+      raise Exception("Region has bad format")
+
+    region = list(regionMatch.groups())
+
+    for i in [1, 2]: # start and end of reference
+      region[i] = int(region[i]) if region[i] else None
+
+  return region

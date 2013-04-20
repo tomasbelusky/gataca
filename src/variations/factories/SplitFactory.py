@@ -49,11 +49,11 @@ class SplitFactory(BaseFactory):
     pos = splitread.left.end - 1
     info['cilen'] = [splitread.right.len, splitread.right.len]
     size = read.pos - splitread.left.end
-    info['cilen'][0] = max(0, self._sample.getMinInsertSize() - size)
-    info['cilen'][1] = max(0, self._sample.getMaxInsertSize() - size)
+    info['cilen'][0] += max(0, self._sample.getMinInsertSize() - size)
+    info['cilen'][1] += max(0, self._sample.getMaxInsertSize() - size)
     info['intervals'] = [[splitread.left.end, splitread.left.end + 1], [splitread.left.end, splitread.left.end + 1]]
     return self.__variation(Variation.vtype.INS, splitread, pos, info)
-    
+
   def leftInsertion(self, splitread):
     """
     Create insertion of left part
@@ -95,7 +95,7 @@ class SplitFactory(BaseFactory):
       else:
         break
 
-    info['intervals'] = [[pos, pos + info['end']]]
+    info['intervals'] = [[pos, pos + info['svlen']]]
     return self.__variation(Variation.vtype.INS, splitread, pos, info)
 
   def deletion(self, splitread):
@@ -115,6 +115,7 @@ class SplitFactory(BaseFactory):
     info = {}
     pos = splitread.remapped.pos
     info['end'] = splitread.primary.pos
+    info['svlen'] = info['end'] - pos + 1
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.INV, splitread, pos, info)
 
@@ -125,6 +126,7 @@ class SplitFactory(BaseFactory):
     info = {}
     pos = splitread.primary.end
     info['end'] = splitread.remapped.end
+    info['svlen'] = info['end'] - pos + 1
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.INV, splitread, pos, info)
 
@@ -137,15 +139,19 @@ class SplitFactory(BaseFactory):
     info['end'] = min(splitpair.read.end, splitread.remapped.end)
 
     if splitpair.isReadFirst():
-      if splitread.remapped == splitread.right:
-        info['cend'] = splitread.left.end - info['end']
+      if splitread.isRearranged():
+        print "first"
+        info['cend'] = splitread.right.end - info['end']
       else:
-        info['cpos'] = info['end'] - (splitread.right.pos - splitread.left.len)
+        print "second"
+        info['cpos'] = info['end'] - splitread.right.pos
     else:
-      if splitread.remapped == splitread.right:
-        info['cend'] = pos - splitread.left.end - splitread.right.len
-      else:
+      if splitread.isRearranged():
+        print "third"
         info['cpos'] = splitread.right.pos - pos
+      else:
+        print "fourth"
+        info['cend'] = pos - splitread.left.end
 
     smallestSize = info['end'] - pos
     info['cilen'] = [smallestSize, smallestSize + info.get('cend', -info.get('cpos', 0))]
@@ -321,7 +327,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.left.pos - 1
     info['traend'] = splitread.left.end
     info['tracend'] = read.pos - info['traend']
-    info['intervals'] = [[splitread.right.end, splitread.right.end + splitread.left.len]]
+    info['intervals'] = [[splitread.right.end, splitread.right.end + 1]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def rightTranslocationEncloseRearrangement(self, read, splitread):
@@ -334,7 +340,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.right.pos - 1
     info['traend'] = splitread.right.end
     info['tracpos'] = read.end - info['trapos']
-    info['intervals'] = [[splitread.left.pos - splitread.right.len, splitread.left.pos]]
+    info['intervals'] = [[splitread.left.pos - 1, splitread.left.pos]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def leftTranslocationEnclose(self, read, splitread):
@@ -347,7 +353,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.left.pos - 1
     info['traend'] = splitread.left.end
     info['tracpos'] = (splitread.right.pos - read.end) - self._sample.getMaxInsertSize()
-    info['intervals'] = [[splitread.right.pos - splitread.left.len, splitread.right.pos]]
+    info['intervals'] = [[splitread.right.pos - 1, splitread.right.pos]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def rightTranslocationEnclose(self, read, splitread):
@@ -360,7 +366,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.right.pos - 1
     info['traend'] = splitread.right.end
     info['tracend'] = self._sample.getMaxInsertSize() - (read.pos - splitread.left.end)
-    info['intervals'] = [[splitread.left.end, splitread.left.end + splitread.right.len]]
+    info['intervals'] = [[splitread.left.end, splitread.left.end + 1]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def leftTranslocationRearrangement(self, splitread):
@@ -373,7 +379,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.left.pos - 1
     info['traend'] = splitread.left.end
     info['tracend'] = splitread.right.pos - splitread.left.end
-    info['intervals'] = [[splitread.right.end, splitread.right.end + splitread.left.len]]
+    info['intervals'] = [[splitread.right.end, splitread.right.end + 1]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def rightTranslocationRearrangement(self, splitread):
@@ -386,7 +392,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.right.pos - 1
     info['traend'] = splitread.right.end
     info['tracpos'] = splitread.left.end - splitread.right.pos
-    info['intervals'] = [[splitread.left.pos - splitread.right.len, splitread.left.pos]]
+    info['intervals'] = [[splitread.left.pos - 1, splitread.left.pos]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def leftTranslocation(self, splitpair, splitread):
@@ -399,7 +405,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.left.pos - 1
     info['traend'] = splitread.left.end
     info['tracpos'] = splitpair.read.end - splitread.left.pos if splitpair.isReadFirst() else -info['trapos']
-    info['intervals'] = [[splitread.right.pos - splitread.left.len, splitread.right.pos]]
+    info['intervals'] = [[splitread.right.pos - 1, splitread.right.pos]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def rightTranslocation(self, splitpair, splitread):
@@ -412,7 +418,7 @@ class SplitFactory(BaseFactory):
     info['trapos'] = splitread.right.pos - 1
     info['traend'] = splitread.right.end
     info['tracend'] = self._countMaxCend(splitread.right.tid, info['traend']) if splitpair.isReadFirst() else splitpair.read.pos - info['traend']
-    info['intervals'] = [[splitread.left.pos, splitread.left.end + splitread.right.len]]
+    info['intervals'] = [[splitread.left.end, splitread.left.end + 1]]
     return self.__variation(Variation.vtype.TRA, splitread, pos, info)
 
   def gap(self, paired):

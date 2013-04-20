@@ -42,7 +42,7 @@ class SplitPair:
     Test if split parts enclose not split read
     """
     return (self.__readFirst and self.__splitread.remapped.pos < self.__read.pos) or \
-           (not self.__readFirst and self.__splitread.remapped.end < self.__read.end)
+           (not self.__readFirst and self.__read.end < self.__splitread.remapped.end)
 
   def hasOverlap(self):
     """

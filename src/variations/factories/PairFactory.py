@@ -59,7 +59,7 @@ class PairFactory(BaseFactory):
     info['end'] = paired.read.end
     info['cpos'] = -self._sample.getMaxInsertSize()
     info['cend'] = paired.actualSize()
-    info['intervals'] = [[paired.read.pos, paired.read.end]]
+    info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.INV, pos, info, paired.read.tid, paired.read.reference)
 
   def inversionMate(self, paired):
@@ -71,7 +71,7 @@ class PairFactory(BaseFactory):
     info['end'] = paired.mate.end
     info['cpos'] = -paired.actualSize()
     info['cend'] = self._sample.getMaxInsertSize()
-    info['intervals'] = [[paired.mate.pos, paired.mate.end]]
+    info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.INV, pos, info, paired.mate.tid, paired.read.reference)
 
   def overlap(self, paired):
@@ -86,6 +86,7 @@ class PairFactory(BaseFactory):
     smallestSize = info['end'] - pos
     info['cilen'] = [smallestSize, smallestSize + info['cend']]
     info['intervals'] = [[pos, info['end']], [pos, info['end']]]
+    info['method'] = 1
     return self.__variation(Variation.vtype.DUP, pos, info, paired.read.tid, paired.read.reference)
 
   def overlapRearranged(self, paired):
@@ -108,7 +109,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     pos = paired.mate.pos - 1
-    overlap = ((paired.actualSize() + paired.mate.len) - self._sample.getMinInsertSize()) > 0
+    overlap = (paired.actualSize() + paired.mate.len - self._sample.getMinInsertSize()) > 0
     info['end'] = paired.read.end + self._sample.getMinInsertSize() if overlap else paired.mate.end
     info['cend'] = paired.read.end + self._sample.getMaxInsertSize() - info['end']
     info['cpos'] = -info['cend']
@@ -123,7 +124,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     info['end'] = paired.read.end
-    overlap = ((paired.actualSize() + paired.read.len) - self._sample.getMinInsertSize()) > 0
+    overlap = (paired.actualSize() + paired.read.len - self._sample.getMinInsertSize()) > 0
     pos = (paired.mate.pos - self._sample.getMinInsertSize() if overlap else paired.read.pos) - 1
     info['cpos'] = paired.mate.pos - self._sample.getMaxInsertSize() - pos
     info['cend'] = -info['cpos']
@@ -138,7 +139,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     info['end'] = paired.mate.end
-    overlap = (self._sample.getMaxInsertSize() + paired.mate.len - paired.actualSize()) < 0
+    overlap = (self._sample.getMaxInsertSize() + paired.mate.len - paired.actualSize()) > 0
     pos = (paired.read.end + self._sample.getMaxInsertSize() + paired.mate.len if overlap else paired.mate.pos) - 1
     info['cpos'] = paired.read.end + self._sample.getMinInsertSize() + paired.mate.len - pos
     info['cend'] = -info['cpos']
@@ -153,7 +154,7 @@ class PairFactory(BaseFactory):
     """
     info = {}
     pos = paired.read.pos - 1
-    overlap = (self._sample.getMaxInsertSize() + paired.read.len - paired.actualSize()) < 0
+    overlap = (self._sample.getMaxInsertSize() + paired.read.len - paired.actualSize()) > 0
     info['end'] = paired.mate.pos - self._sample.getMaxInsertSize() - paired.read.len if overlap else paired.read.end
     info['cend'] = paired.mate.pos - self._sample.getMinInsertSize() - paired.read.len - info['end']
     info['cpos'] = -info['cend']
@@ -202,7 +203,7 @@ class PairFactory(BaseFactory):
     info['traend'] = paired.mate.end
     info['tracpos'] = -self._sample.getMaxInsertSize()
     info['tracend'] = self._countMaxLength(paired.mate.tid, info['traend'])
-    info['intervals'] = [[paired.mate.pos, paired.mate.end]]
+    info['intervals'] = [[paired.read.end, paired.read.end - info['cpos']]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.read.tid, paired.read.reference)
 
   def leftTranslocation(self, paired):
@@ -217,7 +218,7 @@ class PairFactory(BaseFactory):
     info['traend'] = paired.read.end
     info['tracpos'] = -info['trapos']
     info['tracend'] = self._sample.getMaxInsertSize()
-    info['intervals'] = [[paired.read.pos, paired.read.end]]
+    info['intervals'] = [[paired.mate.pos + info['cpos'], paired.mate.pos]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.mate.tid, paired.mate.reference)
 
   def rightTranslocationRearranged(self, paired):
@@ -232,7 +233,7 @@ class PairFactory(BaseFactory):
     info['traend'] = paired.mate.end
     info['tracpos'] = paired.actualSize()
     info['tracend'] = self._sample.getMaxInsertSize()
-    info['intervals'] = [[paired.mate.pos, paired.mate.end]]
+    info['intervals'] = [[paired.read.pos + info['cpos'], paired.read.pos]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.read.tid, paired.read.reference)
 
   def leftTranslocationRearranged(self, paired):
@@ -247,7 +248,7 @@ class PairFactory(BaseFactory):
     info['traend'] = paired.read.end
     info['tracpos'] = -self._sample.getMaxInsertSize()
     info['tracend'] = -paired.actualSize()
-    info['intervals'] = [[paired.read.pos, paired.read.end]]
+    info['intervals'] = [[paired.read.pos, paired.read.pos - info['cpos']]]
     return self.__variation(Variation.vtype.TRA, pos, info, paired.mate.tid, paired.mate.reference)
 
   def translocation(self, paired):

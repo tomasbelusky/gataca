@@ -4,6 +4,7 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
+import sys
 import math
 import pysam
 import re
@@ -241,18 +242,40 @@ class Sample:
 
         # prevent fetching two times same pair
         if not mate or Paired.isFirst(read, mate) or self.readOutOfRegion(reference, start, end, mate):
-          r = Paired(read, mate, self.__reads.lengths, self.__reads.references, self.__splitParts.get(read.qname, []))
+          paired = Paired(read, mate, self.__reads.lengths, self.__reads.references, self.__splitParts.get(read.qname, []))
 
-          if not r.isFiltered():
-            yield r
+          if not paired.isFiltered():
+            yield paired
+
+  def fetchTuplePairs(self, reference=None, start=None, end=None):
+    """
+    Fetch paired reads as Read instances rather than as Paired instance
+      Fetch also low quality reads, first read unmapped
+    """
+    for read in self.__reads.fetch(reference=reference, start=start, end=end):
+      if not read.mate_is_unmapped:
+        mate = self.getMate(read)
+
+        # prevent fetching two times same pair
+        if not mate or read.is_unmapped or Paired.isFirst(read, mate) or self.readOutOfRegion(reference, start, end, mate):
+          yield Read(read, True, Paired._readStrand, self.__reads.references), Read(mate, False, Paired._mateStrand, self.__reads.references)
 
   def readOutOfRegion(self, reference, start, end, read):
     """
     Check if read is out of specified region
     """
-    return (reference is not None and reference != self.getRefName(read.tid)) or \
-           (end is not None and end < read.pos) or \
-           (start is not None and Read.calculateEnd(read) < start)
+    if reference is None:
+      return False
+
+    if start is None:
+      start = 0
+
+    if end is None:
+      end = sys.maxint
+
+    return reference != self.getRefName(read.tid) or \
+           (reference == self.getRefName(read.tid) and \
+            (end < read.pos or Read.calculateEnd(read) < start))
 
   def clusterOutOfRegion(self, reference, start, end, cluster):
     """
@@ -367,6 +390,12 @@ class Sample:
     Return list of reference names
     """
     return self.__reads.references
+
+  def getHeader(self):
+    """
+    Return header of BAM file
+    """
+    return self.__reads.header
 
   def getLengths(self):
     """

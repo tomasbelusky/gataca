@@ -10,6 +10,7 @@ import re
 import sys
 import os
 
+from src.interface.interface import parseRegion
 from src.interface.Settings import Settings
 from src.resources.Sample import Sample
 from src.resources.reads.Read import Read
@@ -91,13 +92,15 @@ def checkPositive(name, value):
 
   return value
 
-def checkInterval(name, interval, value, minValue, minInclude, maxValue, maxInclude):
+def checkInterval(name, value, minValue, minInclude, maxValue, maxInclude):
   """
   Check if value is in interval
   """
   if (minInclude and value < minValue) or (not minInclude and value <= minValue) or \
      (maxInclude and maxValue < value) or (not maxInclude and maxValue <= value):
-    raise Exception("%s must be in interval %s" % (name, interval))
+    leftBracket = "[" if minInclude else "("
+    rightBracket = "]" if maxInclude else ")"
+    raise Exception("%s must be in interval %c%d,%d%c" % (name, leftBracket, minValue, maxValue, rightBracket))
 
   return value
 
@@ -131,40 +134,23 @@ def main(argv):
   if not params['output']: # set output
     params['output'] = sys.stdout
 
-  # parse region
-  region = [None, None, None]
-
-  if params['region']: # parse region
-    regionMatch = re.match(r'^([^:]*)(?::([0-9]*)(?:-([0-9]*))?)?$', params['region'])
-
-    if not regionMatch:
-      raise Exception("Region has bad format")
-
-    region = list(regionMatch.groups())
-
-    for i in [1, 2]: # start and end of reference
-      region[i] = int(region[i]) if region[i] else None
-
-  # create tmp dir
-  if not os.path.exists(Sample.TMP_PATH):
+  if not os.path.exists(Sample.TMP_PATH): # create tmp dir
     os.makedirs(Sample.TMP_PATH)
 
   # set settings
-  Settings.REFERENCE = region[0]
-  Settings.START = region[1]
-  Settings.END = region[2]
+  (Settings.REFERENCE, Settings.START, Settings.END) = parseRegion(params['region'])
   Settings.POLICY = Read.ptype.FR if params['policy'] == "fr" else Read.ptype.RF
   Settings.MIN_QUALITY = params['min_quality']
   Settings.MIN_PART_LENGTH = checkPositive("Minimal length", params['min_length'])
   Settings.WINDOW_SIZE = checkPositive("Window size", params['window_size'])
   (Settings.MIN_COVERAGE, Settings.MAX_COVERAGE) = parseInterval("Coverage", params['coverage'])
-  Settings.COVERAGE_CORE = checkInterval("Coverage core", "(0,1]", params['coverage_core'], 0, False, 1, True)
+  Settings.COVERAGE_CORE = checkInterval("Coverage core", params['coverage_core'], 0, False, 1, True)
   Settings.MIN_COVERAGE_COUNT = checkPositive("Minimal coverage count", params['min_coverage_count'])
   (Settings.MIN_INSERT, Settings.MAX_INSERT) = parseInterval("Insert size", params['insert_size'])
   Settings.INSERT_READS = checkPositive("Insert reads", params['insert_reads'])
-  Settings.INSERT_CORE = checkInterval("Insert core", "(0,1]", params['insert_core'], 0, False, 1, True)
+  Settings.INSERT_CORE = checkInterval("Insert core", params['insert_core'], 0, False, 1, True)
   Settings.MIN_INSERT_COUNT = checkPositive("Minimal insert count", params['min_insert_count'])
-  Settings.MIN_CONFIDENCE = checkInterval("Minimal confidence", "[0,1]", params['min_confidence'], 0, True, 1, True)
+  Settings.MIN_CONFIDENCE = checkInterval("Minimal confidence", params['min_confidence'], 0, True, 1, True)
 
   # create objects and start
   refgenome = pysam.Fastafile(args[1])

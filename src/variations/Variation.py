@@ -31,7 +31,8 @@ class Variation:
                CIGAR_MD=0,
                READ_PAIR=1,
                SPLIT_READ=2,
-               JOINED=3)
+               JOINED=3,
+               VCF=4)
 
   def __init__(self, vtype, reference, start, seq, refseq, mtype, info={}):
     """
@@ -93,6 +94,26 @@ class Variation:
     Return max rightmost index of variation if exist, else return leftmost index
     """
     return self.__info.get('end', self.__info.get('max', self.__start)) + self.__info.get('cend', 0)
+
+  def getLength(self):
+    """
+    Return length of variation or interval of possible lengths
+    """
+    if 'svlen' in self.__info:
+      return self.__info['svlen']
+    elif 'cilen' in self.__info:
+      return self.__info['cilen']
+    elif 'trachrom' in self.__info:
+      minLen = self.info['traend'] - self.info['trapos']
+      maxLen = (self.info['traend'] + self.info.get('tracend', 0)) - (self.info['trapos'] + self.info.get('tracpos', 0))
+    else:
+      minLen = self.getEnd() - self.getStart()
+      maxLen = self.getMaxEnd() - self.getMaxStart()
+
+    if minLen != maxLen:
+      return [minLen, maxLen]
+    else:
+      return minLen
 
   def isImprecise(self):
     """

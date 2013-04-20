@@ -109,8 +109,6 @@ class StructuralCluster(AbstractCluster):
 
       intervals[tuple(int1)] = count
 
-    """
-    INFO: don't count in test phase
     for start, end in intervals: # get fulldepth in intervals
       fulldepth += self._sample.getExactCoverages(self._rindex, start, end)
 
@@ -118,7 +116,6 @@ class StructuralCluster(AbstractCluster):
 
       if info['conf'] < Settings.MIN_CONFIDENCE:
         return ""
-    """
 
     return "%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
                                             self._actualStart,
