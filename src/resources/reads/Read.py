@@ -4,10 +4,10 @@
 __author__ = "Tomáš Beluský"
 __date__ = "11.04. 2013"
 
+from SplitPart import SplitPart
 from src.interface.Settings import Settings
 from src.interface.interface import *
-from SplitPart import SplitPart
-from Cigar import Cigar
+from src.variations.factories.CigarFactory import CigarFactory
 
 class Read:
   """
@@ -109,13 +109,13 @@ class Read:
     """
     Test if read is split
     """
-    return Cigar.op.SOFTCLIP in dict(self.__read.cigar)
+    return CigarFactory.op.SOFTCLIP in dict(self.__read.cigar)
 
   def hasGaps(self):
     """
     Test if read has gaps
     """
-    gaps = (Cigar.op.SKIPPED, Cigar.op.SOFTCLIP, Cigar.op.HARDCLIP, Cigar.op.PADDING)
+    gaps = (CigarFactory.op.SKIPPED, CigarFactory.op.SOFTCLIP, CigarFactory.op.HARDCLIP, CigarFactory.op.PADDING)
     return set(dict(self.__read.cigar)).intersection(gaps)
 
   def hasMinQuality(self):
@@ -135,31 +135,31 @@ class Read:
     actualCigar = []
 
     for operator, length in self.__read.cigar:
-      if operator == Cigar.op.SOFTCLIP:
+      if operator == CigarFactory.op.SOFTCLIP:
         if actualCigar: # append part
           parts.append(SplitPart(pos,
-                                 self.__read.seq[start:end],
-                                 actualCigar,
-                                 self.__read.mapq,
-                                 self.__read.is_reverse,
-                                 False,
-                                 False))
+                       self.__read.seq[start:end],
+                       actualCigar,
+                       self.__read.mapq,
+                       self.__read.is_reverse,
+                       False,
+                       False))
           pos += length
           actualCigar = []
 
         start += length
-      elif operator in Cigar.sums:
+      elif operator in CigarFactory.sums:
         end = start + length
         actualCigar.append((operator, length))
 
     if actualCigar:
       parts.append(SplitPart(pos,
-                             self.__read.seq[start:end],
-                             actualCigar,
-                             self.__read.mapq,
-                             self.__read.is_reverse,
-                             False,
-                             False))
+                   self.__read.seq[start:end],
+                   actualCigar,
+                   self.__read.mapq,
+                   self.__read.is_reverse,
+                   False,
+                   False))
 
     return parts
 
@@ -173,7 +173,7 @@ class Read:
     value = ''
 
     for operator, length in self.__read.cigar:
-      if operator != Cigar.op.SOFTCLIP:
+      if operator != CigarFactory.op.SOFTCLIP:
         start += length
       else:
         end = start + length
@@ -204,7 +204,7 @@ class Read:
       value += '*'
     else:
       for operator, length in self.__read.cigar:
-        value += '%d%s' % (length, Cigar.abbr[operator])
+        value += '%d%s' % (length, CigarFactory.abbr[operator])
 
     value += '\t%s\t%d\t%d\t%s\t%s' % (self.__refnames[self.__read.rnext], self.__read.pnext + 1, self.__read.tlen, self.__read.seq, self.__read.qual)
 

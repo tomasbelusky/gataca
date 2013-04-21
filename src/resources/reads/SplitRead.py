@@ -6,7 +6,7 @@ __date__ = "12.04. 2013"
 
 from src.interface.interface import *
 from src.interface.Settings import Settings
-from Cigar import Cigar
+from src.variations.factories.CigarFactory import CigarFactory
 
 class SplitRead:
   """
@@ -89,7 +89,7 @@ class SplitRead:
     fullLength = 0
 
     for operator, length in self.__original.sam.cigar:
-      if operator == Cigar.op.SOFTCLIP:
+      if operator == CigarFactory.op.SOFTCLIP:
         if fullLength:
           if fullLength < Settings.MIN_PART_LENGTH:
             return False
@@ -98,7 +98,7 @@ class SplitRead:
 
         if length < Settings.MIN_PART_LENGTH:
           return False
-      elif operator in Cigar.sums:
+      elif operator in CigarFactory.sums:
         fullLength += length
 
     return fullLength == 0 or Settings.MIN_PART_LENGTH <= fullLength
@@ -109,8 +109,8 @@ class SplitRead:
     """
     dLeft = dict(self.__left.cigar)
     dRight = dict(self.__right.cigar)
-    return Cigar.op.SOFTCLIP in dLeft or Cigar.op.HARDCLIP in dLeft or \
-           Cigar.op.SOFTCLIP in dRight or Cigar.op.HARDCLIP in dRight
+    return CigarFactory.op.SOFTCLIP in dLeft or CigarFactory.op.HARDCLIP in dLeft or \
+           CigarFactory.op.SOFTCLIP in dRight or CigarFactory.op.HARDCLIP in dRight
 
   def hasGap(self):
     """

@@ -7,6 +7,7 @@ __date__ = "13.04. 2013"
 from src.interface.interface import *
 from src.variations.Variation import Variation
 from src.variations.clusters.OppositeCluster import OppositeCluster
+from CigarFactory import CigarFactory
 from BaseFactory import BaseFactory
 
 class SplitFactory(BaseFactory):
@@ -83,14 +84,14 @@ class SplitFactory(BaseFactory):
     info['svlen'] = 0
 
     for operation, length in splitread.left.cigar.reverse:
-      if operation in (Cigar.align.SOFTCLIP, Cigar.align.HARDCLIP):
+      if operation in (CigarFactory.align.SOFTCLIP, CigarFactory.align.HARDCLIP):
         pos -= length
         info['svlen'] += length
       else:
         break
 
     for operation, length in splitread.right.cigar:
-      if operation in (Cigar.align.SOFTCLIP, Cigar.align.HARDCLIP):
+      if operation in (CigarFactory.align.SOFTCLIP, CigarFactory.align.HARDCLIP):
         info['svlen'] += length
       else:
         break

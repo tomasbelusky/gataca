@@ -4,7 +4,7 @@
 __author__ = "Tomáš Beluský"
 __date__ = "12.04. 2013"
 
-from Cigar import Cigar
+from src.variations.factories.CigarFactory import CigarFactory
 from src.interface.Settings import Settings
 
 class SplitPart:
@@ -27,7 +27,7 @@ class SplitPart:
     self.__len = len(self.__seq)
     self.__end = self.__pos + self.__len
 
-    if self.__cigar and self.__cigar[0][0] == Cigar.op.SOFTCLIP:
+    if self.__cigar and self.__cigar[0][0] == CigarFactory.op.SOFTCLIP:
       self.__pos -= self.__cigar[0][1]
 
   def hasMinQuality(self):

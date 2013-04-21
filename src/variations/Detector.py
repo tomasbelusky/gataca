@@ -5,7 +5,6 @@ __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
 import copy
-import re
 from collections import OrderedDict
 from datetime import date
 
@@ -18,23 +17,19 @@ from factories.SplitFactory import SplitFactory
 from src.interface.Settings import Settings
 from src.interface.interface import *
 from src.resources.VcfCreator import VcfCreator
-from src.resources.reads.Cigar import Cigar
+from src.variations.factories.CigarFactory import CigarFactory
 
 class Detector:
   """
   Detector of variations
   """
-  faStates = enum(# states of FA for finding SNPs and deletions from MD tag
-                  START=0,
-                  MATCH=1,
-                  DELETION=2)
-  bases = re.compile(r'[A-Z]', re.I) # re that folds all letters
 
   def __init__(self, sample, refgenome, output):
     """
     Initialize variables
     """
     self.__sample = sample
+    self.__cigarFactory = CigarFactory(self.__sample)
     self.__pairFactory = PairFactory(self.__sample)
     self.__splitFactory = SplitFactory(self.__sample)
 
@@ -214,109 +209,8 @@ class Detector:
     """
     Get SNPs and indels from CIGAR string and MD tag
     """
-    if self.__sample.readOutOfRegion(Settings.REFERENCE, Settings.START, Settings.END, read.sam):
-      return
-
-    tags = dict(read.sam.tags)
-    mdtag = tags.get("MD", "")
-    pos = read.pos
-    insPos = pos
-    queryIndex = 0
-    insIndex = 0
-    refname = self.__sample.getRefName(read.tid)
-    intervals = [[read.pos, read.end]]
-
-    for operation, length in read.sam.cigar: # look at all operations and their lengths in CIGAR
-      if operation in [Cigar.op.ALIGNMENT, Cigar.op.SOFTCLIP, Cigar.op.MATCH, Cigar.op.MISMATCH]: # shift index and position
-        insIndex += length
-        insPos += length
-
-        if operation == Cigar.op.SOFTCLIP: # shift query index and skip parsing MD
-          queryIndex += length
-          continue
-      elif operation == Cigar.op.INSERTION: # store insertion and skip parsing MD
-        newIndex = insIndex + length
-        tmpPos = insPos - 1
-        refseq = self.__sample.fetchReference(read.tid, tmpPos, insPos)
-        self.__variations[refname].append(Variation(Variation.vtype.INS, refname,
-                                          tmpPos, None,
-                                          refseq, Variation.mtype.CIGAR_MD,
-                                          info={'svlen': length, 'intervals': intervals}))
-        insIndex = newIndex
-        queryIndex += length
-        continue
-      elif operation != Cigar.op.DELETION: # skip parsing MD
-        continue
-
-      state = Detector.faStates.START
-      intIndex = 0
-      match = ""
-      lenDeletion = 0
-      saveSNP = False
-      delVariation = None
-
-      while mdtag: # parse MD string from read tags
-        sign = mdtag[0]
-
-        if state == Detector.faStates.START: # START STATE ---------------------
-          mdtag = mdtag[1:]
-
-          if sign.isdigit(): # matches
-            match += sign
-            state = Detector.faStates.MATCH
-          elif Detector.bases.match(sign):  # SNP
-            saveSNP = True
-          elif sign == '^': # deletion
-            pos -= 1
-            state = Detector.faStates.DELETION
-        elif state == Detector.faStates.MATCH: # MATCH STATE -------------------
-          if sign.isdigit(): # match
-            match += sign
-            mdtag = mdtag[1:]
-          else: # stop matching
-            offset = int(match)
-            pos += offset
-            queryIndex += offset
-            intIndex += offset
-            match = ""
-
-            if intIndex < length: # continue parsing
-              mdtag = mdtag[1:]
-
-              if sign == '^': # deletion
-                pos -= 1
-                state = Detector.faStates.DELETION
-              else: # SNP
-                saveSNP = True
-        elif state == Detector.faStates.DELETION: # DELETION STATE -------------
-          if Detector.bases.match(sign): # deleted bases
-            mdtag = mdtag[1:]
-            lenDeletion += 1
-            delVariation = Variation(Variation.vtype.DEL, refname, pos,
-                                     None, read.sam.seq[queryIndex],
-                                     Variation.mtype.CIGAR_MD,
-                                     info={'svlen': lenDeletion, 'intervals': intervals, 'end': pos + lenDeletion})
-          else: # end of deletion
-            self.__variations[refname].append(delVariation)
-            intIndex += lenDeletion
-            lenDeletion = 0
-            state = Detector.faStates.START
-
-        if saveSNP: # save SNP
-          self.__variations[refname].append(Variation(Variation.vtype.SNP, refname,
-                                            pos, read.sam.seq[queryIndex], sign,
-                                            Variation.mtype.CIGAR_MD, info={'intervals': intervals}))
-          pos += 1
-          queryIndex += 1
-          intIndex += 1
-          state = Detector.faStates.START
-          saveSNP = False
-
-        if intIndex >= length: # go to next cigar operation
-          break
-
-      if state == Detector.faStates.DELETION: # add deletion
-        self.__variations[refname].append(delVariation)
+    for variation in self.__cigarFactory.snpIndels(read):
+      self.__variations[variation.getReference()].append(variation)
 
   def start(self):
     """
@@ -327,77 +221,76 @@ class Detector:
 
     # fetch paired reads (can be also singleton or unmapped mate)
     for paired in self.__sample.fetchPairs(reference=Settings.REFERENCE, start=Settings.START, end=Settings.END):
+      print "start", paired.read.pos
+
       if paired.isSingle():
         self.__getSnpIndels(paired.read)
-        continue
       else:
         self.__getSnpIndels(paired.read)
         self.__getSnpIndels(paired.mate)
+        variation = None
 
-      print "start", paired.read.pos
-      variation = None
-
-      if paired.isNormal():
-        if paired.isRearranged():
-          if paired.isInterchromosomal():
-            self.__addOppositeCluster(self.__pairFactory.translocationRearranged(paired))
+        if paired.isNormal():
+          if paired.isRearranged():
+            if paired.isInterchromosomal():
+              self.__addOppositeCluster(self.__pairFactory.translocationRearranged(paired))
+            elif paired.hasOverlap():
+              variation = self.__pairFactory.overlapRearranged(paired)
+            else:
+              self.__addOppositeCluster(self.__pairFactory.rearrangement(paired))
+          elif paired.isInterchromosomal():
+            if not paired.read.isInverted() and not paired.mate.isInverted():
+              self.__addOppositeCluster(self.__pairFactory.translocation(paired))
+          elif paired.read.isInverted():
+            variation = self.__pairFactory.inversionRead(paired)
+          elif paired.mate.isInverted():
+            variation = self.__pairFactory.inversionMate(paired)
           elif paired.hasOverlap():
-            variation = self.__pairFactory.overlapRearranged(paired)
-          else:
-            self.__addOppositeCluster(self.__pairFactory.rearrangement(paired))
-        elif paired.isInterchromosomal():
-          if not paired.read.isInverted() and not paired.mate.isInverted():
-            self.__addOppositeCluster(self.__pairFactory.translocation(paired))
-        elif paired.read.isInverted():
-          variation = self.__pairFactory.inversionRead(paired)
-        elif paired.mate.isInverted():
-          variation = self.__pairFactory.inversionMate(paired)
-        elif paired.hasOverlap():
-          variation = self.__pairFactory.overlap(paired)
-        elif paired.actualSize() < self.__sample.getMinInsertSize():
-          self.__addOppositeCluster(self.__pairFactory.smallInsertSize(paired))
-        elif paired.actualSize() > self.__sample.getMaxInsertSize():
-          self.__addOppositeCluster(self.__pairFactory.bigInsertSize(paired))
-      elif (paired.isReadSplit() or paired.isMateSplit()) and paired.splitpair.splitread.isUsable():
-        if paired.splitpair.splitread.left.isUnmapped():
-          if not paired.splitpair.splitread.right.isInverted():
-            if paired.splitpair.isReadFirst():
-              variation = self.__splitFactory.leftEncloseInsertion(paired.splitpair.read, paired.splitpair.splitread)
+            variation = self.__pairFactory.overlap(paired)
+          elif paired.actualSize() < self.__sample.getMinInsertSize():
+            self.__addOppositeCluster(self.__pairFactory.smallInsertSize(paired))
+          elif paired.actualSize() > self.__sample.getMaxInsertSize():
+            self.__addOppositeCluster(self.__pairFactory.bigInsertSize(paired))
+        elif (paired.isReadSplit() or paired.isMateSplit()) and paired.splitpair.splitread.isUsable():
+          if paired.splitpair.splitread.left.isUnmapped():
+            if not paired.splitpair.splitread.right.isInverted():
+              if paired.splitpair.isReadFirst():
+                variation = self.__splitFactory.leftEncloseInsertion(paired.splitpair.read, paired.splitpair.splitread)
+              else:
+                variation = self.__splitFactory.leftInsertion(paired.splitpair.splitread)
+          elif paired.splitpair.splitread.right.isUnmapped():
+            if not paired.splitpair.splitread.left.isInverted():
+              if paired.splitpair.isReadFirst():
+                variation = self.__splitFactory.rightInsertion(paired.splitpair.splitread)
+              else:
+                variation = self.__splitFactory.rightEncloseInsertion(paired.splitpair.read, paired.splitpair.splitread)
+          elif paired.splitpair.splitread.left.isInverted():
+            if not paired.splitpair.partsEnclosePair() and not paired.splitpair.splitread.isRearranged() and not paired.splitpair.splitread.right.isInverted():
+              variation = self.__splitFactory.inversionLeft(paired.splitpair.splitread)
+          elif paired.splitpair.splitread.right.isInverted():
+            if not paired.splitpair.partsEnclosePair() and not paired.splitpair.splitread.isRearranged():
+              variation = self.__splitFactory.inversionRight(paired.splitpair.splitread)
+          elif paired.splitpair.hasOverlap():
+            variation = self.__splitFactory.overlapPair(paired.splitpair, paired.splitpair.splitread)
+          elif paired.splitpair.partsEnclosePair():
+            if paired.splitpair.splitread.isRearranged():
+              self.__addOppositeCluster(self.__splitFactory.encloseRearrangement(paired))
             else:
-              variation = self.__splitFactory.leftInsertion(paired.splitpair.splitread)
-        elif paired.splitpair.splitread.right.isUnmapped():
-          if not paired.splitpair.splitread.left.isInverted():
-            if paired.splitpair.isReadFirst():
-              variation = self.__splitFactory.rightInsertion(paired.splitpair.splitread)
+              self.__addOppositeCluster(self.__splitFactory.enclose(paired))
+          elif paired.splitpair.splitread.isRearranged():
+            if paired.splitpair.splitread.hasGap():
+              self.__addOppositeCluster(self.__splitFactory.rearrangement(paired))
             else:
-              variation = self.__splitFactory.rightEncloseInsertion(paired.splitpair.read, paired.splitpair.splitread)
-        elif paired.splitpair.splitread.left.isInverted():
-          if not paired.splitpair.partsEnclosePair() and not paired.splitpair.splitread.isRearranged() and not paired.splitpair.splitread.right.isInverted():
-            variation = self.__splitFactory.inversionLeft(paired.splitpair.splitread)
-        elif paired.splitpair.splitread.right.isInverted():
-          if not paired.splitpair.partsEnclosePair() and not paired.splitpair.splitread.isRearranged():
-            variation = self.__splitFactory.inversionRight(paired.splitpair.splitread)
-        elif paired.splitpair.hasOverlap():
-          variation = self.__splitFactory.overlapPair(paired.splitpair, paired.splitpair.splitread)
-        elif paired.splitpair.partsEnclosePair():
-          if paired.splitpair.splitread.isRearranged():
-            self.__addOppositeCluster(self.__splitFactory.encloseRearrangement(paired))
-          else:
-            self.__addOppositeCluster(self.__splitFactory.enclose(paired))
-        elif paired.splitpair.splitread.isRearranged():
-          if paired.splitpair.splitread.hasGap():
-            self.__addOppositeCluster(self.__splitFactory.rearrangement(paired))
-          else:
-            variation = self.__splitFactory.overlapRearrangedParts(paired.splitpair.splitread)
-        elif paired.splitpair.splitread.hasGap():
-          self.__addOppositeCluster(self.__splitFactory.gap(paired))
-        elif paired.splitpair.splitread.hasOverlap():
-          variation = self.__splitFactory.overlapParts(paired.splitpair.splitread)
-        elif paired.splitpair.splitread.hasInsertion():
-          variation = self.__splitFactory.normalInsertion(paired.splitpair.splitread)
+              variation = self.__splitFactory.overlapRearrangedParts(paired.splitpair.splitread)
+          elif paired.splitpair.splitread.hasGap():
+            self.__addOppositeCluster(self.__splitFactory.gap(paired))
+          elif paired.splitpair.splitread.hasOverlap():
+            variation = self.__splitFactory.overlapParts(paired.splitpair.splitread)
+          elif paired.splitpair.splitread.hasInsertion():
+            variation = self.__splitFactory.normalInsertion(paired.splitpair.splitread)
 
-      if variation: # append variation
-        self.__variations[variation.getReference()].append(variation)
+        if variation: # append variation
+          self.__variations[variation.getReference()].append(variation)
 
     self.__processOppositeClusters()
     self.__makeClusters()

@@ -35,7 +35,7 @@ class Bwa:
                          "%s.fastq" % filename],
                          stdout=sai,
                          stderr=devnull)
-      
+
       with open("%s.sam" % filename, "w") as sam:
         subprocess.call(["bwa",
                          "samse",

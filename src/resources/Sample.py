@@ -23,7 +23,7 @@ class Sample:
   Represents sample and also hold file with reference genome
   """
   TMP_PATH = "tmp"
-  FILENAME_TEMPLATE = "%s/%d_" % (TMP_PATH, 12941)#os.getpid())
+  FILENAME_TEMPLATE = "%s/%d_" % (TMP_PATH, os.getpid())
   reGCcontent = re.compile('[G|C]', re.I) # re for getting length of GC content
 
   def __init__(self, filename, refgenome):
@@ -185,14 +185,12 @@ class Sample:
     for ref in usedFiles: # do remapping
       actualRef = "%s%s" % (Sample.FILENAME_TEMPLATE, ref)
 
-      """
       with open("%s.fasta" % actualRef, 'w') as refFile: # create file with actual reference
         rindex = self.getRefIndex(ref)
         refFile.write(">%s\n" % ref)
         refFile.write(self.fetchReference(rindex, 0, self.__reads.lengths[rindex]))
 
       self.__bwa.index(actualRef)
-      """
       self.__bwa.align(actualRef)
 
       with pysam.Samfile("%s.sam" % actualRef) as splitsam:
@@ -206,11 +204,11 @@ class Sample:
                                                                     read.is_unmapped,
                                                                     True))
 
-      #for f in glob.glob("%s*" % actualRef): # remove temporary files
-      #  os.remove(f)
+      for f in glob.glob("%s*" % actualRef): # remove temporary files
+        os.remove(f)
 
-    #for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTQ files
-    #  os.remove(f)
+    for f in glob.glob("%s*" % Sample.FILENAME_TEMPLATE): # remove unused temporary FASTQ files
+      os.remove(f)
 
   def preprocessing(self):
     """
