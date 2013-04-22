@@ -5,11 +5,10 @@ __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
 import copy
-from collections import OrderedDict
 from datetime import date
+from bx.intervals.intersection import Intersecter, Interval
 
 from Variation import Variation
-from bx.intervals.intersection import Intersecter, Interval
 from clusters.SnpCluster import SnpCluster
 from clusters.StructuralCluster import StructuralCluster
 from factories.PairFactory import PairFactory
@@ -64,9 +63,9 @@ class Detector:
   def __emptyVariables(self):
     self.__variations = dict((x, []) for x in self.__sample.getReferences())
 
-    self.__clusters = OrderedDict((x, OrderedDict()) for x in self.__sample.getReferences())
-    self.__finalClusters = OrderedDict((x, []) for x in self.__sample.getReferences())
-    self.__clusterTree = OrderedDict((x, Intersecter()) for x in self.__sample.getReferences())
+    self.__clusters = dict((x, {}) for x in self.__sample.getReferences())
+    self.__finalClusters = dict((x, []) for x in self.__sample.getReferences())
+    self.__clusterTree = dict((x, Intersecter()) for x in self.__sample.getReferences())
 
     self.__opposites = copy.deepcopy(self.__clusters)
     self.__finalOpposites = []
@@ -140,7 +139,7 @@ class Detector:
     for ref in self.__variations: # help clusters to decide about winning variations
       for i in range(len(self.__variations[ref])):
         variation = self.__variations[ref].pop(0)
-        print "process", variation.getStart()
+        #print "process", variation.getStart()
 
         if not self.__addVariationIntoOpposite(variation, False):
           self.__variations[ref].append(variation)
@@ -172,7 +171,7 @@ class Detector:
         start = variation.getMaxStart()
         end = variation.getMaxEnd()
         added = False
-        print "make", start
+        #print "make", start
 
         for interval in self.__clusterTree[ref].find(start-1, end+1): # compare similarity with overlapped clusters
           clusters = self.__clusters[ref].get((interval.start, interval.end), [])
@@ -200,7 +199,7 @@ class Detector:
     """
     Write clusters with founded variations in VCF format
     """
-    for ref in self.__finalClusters: # add all clusters
+    for ref in self.__sample.getReferences(): # add all clusters
       for cluster in sorted(self.__finalClusters[ref], key=lambda c: c.getActualStart()):
         if not self.__sample.clusterOutOfRegion(Settings.REFERENCE, Settings.START, Settings.END, cluster):
           self.__vcfCreator.writeRecord(cluster.toString())
@@ -221,7 +220,7 @@ class Detector:
 
     # fetch paired reads (can be also singleton or unmapped mate)
     for paired in self.__sample.fetchPairs(reference=Settings.REFERENCE, start=Settings.START, end=Settings.END):
-      print "start", paired.read.pos
+      #print "start", paired.read.pos
 
       if paired.isSingle():
         self.__getSnpIndels(paired.read)

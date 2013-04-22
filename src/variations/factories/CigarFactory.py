@@ -47,39 +47,35 @@ class CigarFactory(BaseFactory):
       return
 
     tags = dict(read.sam.tags)
-    mdtag = tags.get("MD", "")
+    mdtag = tags.get("MD", [])
     pos = read.pos
-    insPos = pos
+    refPos = pos
     queryIndex = 0
-    insIndex = 0
     refname = self._sample.getRefName(read.tid)
-    intervals = [[read.pos, read.end]]
 
     for operation, length in read.sam.cigar: # look at all operations and their lengths in CIGAR
-      if operation in [CigarFactory.op.ALIGNMENT, CigarFactory.op.SOFTCLIP, CigarFactory.op.MATCH, CigarFactory.op.MISMATCH]: # shift index and position
-        insIndex += length
-        insPos += length
-
-        if operation == CigarFactory.op.SOFTCLIP: # shift query index and skip parsing MD
-          queryIndex += length
-          continue
-      elif operation == CigarFactory.op.INSERTION: # store insertion and skip parsing MD
-        newIndex = insIndex + length
-        tmpPos = insPos - 1
-        refseq = self._sample.fetchReference(read.tid, tmpPos, insPos)
-        yield Variation(Variation.vtype.INS, refname, tmpPos, None, refseq, Variation.mtype.CIGAR_MD, info={'svlen': length, 'intervals': intervals})
-        insIndex = newIndex
-        queryIndex += length
-        continue
+      if operation in (CigarFactory.op.ALIGNMENT, CigarFactory.op.MATCH, CigarFactory.op.MISMATCH): # shift index and position
+        refPos += length
       elif operation != CigarFactory.op.DELETION: # skip parsing MD
+        if operation == CigarFactory.op.SOFTCLIP: # shift query index
+          queryIndex += length
+        elif operation == CigarFactory.op.INSERTION: # store insertion
+          tmpPos = refPos - 1
+          queryIndex += length
+          refseq = self._sample.fetchReference(read.tid, tmpPos, refPos)
+          yield Variation(Variation.vtype.INS, refname, tmpPos, None, refseq,
+                          Variation.mtype.CIGAR_MD,
+                          info={'svlen': length, 'intervals': [[refPos, refPos+length]]})
+
         continue
 
       state = CigarFactory.faStates.START
-      intIndex = 0
+      internIndex = 0
       match = ""
-      lenDeletion = 0
       saveSNP = False
+      delLength = 0
       delVariation = None
+      refseq = ""
 
       while mdtag: # parse MD string from read tags
         sign = mdtag[0]
@@ -94,6 +90,7 @@ class CigarFactory(BaseFactory):
             saveSNP = True
           elif sign == '^': # deletion
             pos -= 1
+            refseq = read.sam.seq[queryIndex-1]
             state = CigarFactory.faStates.DELETION
         elif state == CigarFactory.faStates.MATCH: # MATCH STATE -------------------
           if sign.isdigit(): # match
@@ -103,37 +100,42 @@ class CigarFactory(BaseFactory):
             offset = int(match)
             pos += offset
             queryIndex += offset
-            intIndex += offset
+            internIndex += offset
             match = ""
 
-            if intIndex < length: # continue parsing
+            if internIndex < length: # continue parsing
               mdtag = mdtag[1:]
 
               if sign == '^': # deletion
                 pos -= 1
+                refseq = read.sam.seq[queryIndex-1]
                 state = CigarFactory.faStates.DELETION
               else: # SNP
                 saveSNP = True
         elif state == CigarFactory.faStates.DELETION: # DELETION STATE -------------
           if CigarFactory.bases.match(sign): # deleted bases
             mdtag = mdtag[1:]
-            lenDeletion += 1
-            delVariation = Variation(Variation.vtype.DEL, refname, pos, None, read.sam.seq[queryIndex], Variation.mtype.CIGAR_MD, info={'svlen': lenDeletion, 'intervals': intervals, 'end': pos + lenDeletion})
+            delLength += 1
+            delPos = pos + 1
+            delVariation = Variation(Variation.vtype.DEL, refname, pos, None, refseq,
+                                     Variation.mtype.CIGAR_MD,
+                                     info={'svlen': delLength, 'intervals': [[delPos, delPos+delLength]]})
           else: # end of deletion
-            yield delVariation
-            intIndex += lenDeletion
-            lenDeletion = 0
+            internIndex += delLength
+            delLength = 0
             state = CigarFactory.faStates.START
+            yield delVariation
 
         if saveSNP: # save SNP
-          yield Variation(Variation.vtype.SNP, refname, pos, read.sam.seq[queryIndex], sign, Variation.mtype.CIGAR_MD, info={'intervals': intervals})
+          yield Variation(Variation.vtype.SNP, refname, pos, read.sam.seq[queryIndex], sign,
+                          Variation.mtype.CIGAR_MD, info={'intervals': [[pos, pos+1]]})
           pos += 1
           queryIndex += 1
-          intIndex += 1
+          internIndex += 1
           state = CigarFactory.faStates.START
           saveSNP = False
 
-        if intIndex >= length: # go to next cigar operation
+        if internIndex >= length: # go to next cigar operation
           break
 
       if state == CigarFactory.faStates.DELETION: # add deletion

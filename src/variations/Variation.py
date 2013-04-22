@@ -65,6 +65,12 @@ class Variation:
     """
     return self.__type
 
+  def getSvtype(self):
+    """
+    Return type of variation
+    """
+    return self.__info.get("svtype", "SNP")
+
   def getReference(self):
     """
     Return reference name
