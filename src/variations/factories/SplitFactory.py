@@ -105,7 +105,8 @@ class SplitFactory(BaseFactory):
     """
     info = {}
     pos = splitread.left.end - 1
-    info['svlen'] = splitread.right.pos - pos
+    info['end'] = splitread.right.pos
+    info['svlen'] = info['end'] - pos + 1
     info['intervals'] = [[splitread.left.end, splitread.right.pos]]
     return self.__variation(Variation.vtype.DEL, splitread, pos, info)
 
@@ -141,17 +142,13 @@ class SplitFactory(BaseFactory):
 
     if splitpair.isReadFirst():
       if splitread.isRearranged():
-        print "first"
         info['cend'] = splitread.right.end - info['end']
       else:
-        print "second"
         info['cpos'] = info['end'] - splitread.right.pos
     else:
       if splitread.isRearranged():
-        print "third"
         info['cpos'] = splitread.right.pos - pos
       else:
-        print "fourth"
         info['cend'] = pos - splitread.left.end
 
     smallestSize = info['end'] - pos
@@ -166,7 +163,7 @@ class SplitFactory(BaseFactory):
     info = {}
     pos = splitread.right.pos - 1
     info['end'] = splitread.left.end
-    info['svlen'] = info['end'] - pos
+    info['svlen'] = info['end'] - pos + 1
     info['intervals'] = [[pos, info['end']]]
     return self.__variation(Variation.vtype.DUT, splitread, pos, info)
 
@@ -284,7 +281,7 @@ class SplitFactory(BaseFactory):
       if not (splitread.left.len % 2) and (splitread.left.len / 2) == -info['cend']:
         vtype = Variation.vtype.DUT
 
-      info['svlen'] = info['end'] - pos
+      info['svlen'] = info['end'] - pos + 1
     else:
       info['cpos'] = -info['cend']
       smallestSize = info['end'] - pos
@@ -309,7 +306,7 @@ class SplitFactory(BaseFactory):
       if not (splitread.right.len % 2) and (splitread.right.len / 2) == -info['cend']:
         vtype = Variation.vtype.DUT
 
-      info['svlen'] = info['end'] - pos
+      info['svlen'] = info['end'] - pos + 1
     else:
       smallestSize = info['end'] - pos
       info['cilen'] = [smallestSize, smallestSize + info['cend']]

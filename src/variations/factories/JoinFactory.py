@@ -34,7 +34,7 @@ class JoinFactory(BaseFactory):
 
     return {} if cpos == 0 else {key : cpos}
 
-  def __countCilen(self, info1, info2):
+  def __countCilen(self, info1, info2, fromSvlen):
     """
     Count confidence length
     """
@@ -44,13 +44,17 @@ class JoinFactory(BaseFactory):
       else:
         cilen = info1['cilen']
         cilen[0] = min(cilen[0], info2.get('svlen', sys.maxint))
-        cilen[1] = max(info1['cilen'][1], info2.get('svlen', 0))
+        cilen[1] = max(cilen[1], info2.get('svlen', 0))
     elif 'cilen' in info2:
       cilen = info2['cilen']
       cilen[0] = min(cilen[0], info1.get('svlen', sys.maxint))
-      cilen[1] = max(info2['cilen'][1], info1.get('svlen', 0))
+      cilen[1] = max(cilen[1], info1.get('svlen', 0))
     else:
-      cilen = [0,0]
+      cilen = [0, 0]
+
+      if fromSvlen:
+        cilen[0] = min(info1.get('svlen', sys.maxint), info2.get('svlen', sys.maxint))
+        cilen[1] = max(info1.get('svlen', 0), info2.get('svlen', 0))
 
     return {'cilen' : cilen}
 
@@ -71,8 +75,7 @@ class JoinFactory(BaseFactory):
     """
     Shift confidence position in key
     """
-    if key in info:
-      info[key] += plus
+    info[key] = info.get(key, 0) + plus
 
   def __haveOverlap(self, first, second, info1, info2):
     """
@@ -103,7 +106,7 @@ class JoinFactory(BaseFactory):
     self.__shiftConfidence(info1, first.getEnd() - info['end'], 'cend')
     info.update(self.__countCpos(info1, info2))
     info.update(self.__countCend(info1, info2))
-    info.update(self.__countCilen(info1, info2))
+    info.update(self.__countCilen(info1, info2, False))
     info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     refseq = self._sample.fetchReference(self._sample.getRefIndex(first.getReference()), pos, pos+1)
@@ -119,11 +122,11 @@ class JoinFactory(BaseFactory):
     if not self.__haveOverlap(first, second, info1, info2):
       return None, None
 
-    self.__shiftConfidence(info1, second.getStart() - first.getStart(), 'cpos')
+    self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
     pos = second.getStart()
     info = {}
     info.update(self.__countCpos(info1, info2))
-    info.update(self.__countCilen(info1, info2))
+    info.update(self.__countCilen(info1, info2, True))
     info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return pos, info
@@ -149,12 +152,12 @@ class JoinFactory(BaseFactory):
     if not self.__haveOverlap(first, second, info1, info2) or (first.getStart() + info1.get('svlen', 0)) < second.getStart():
       return None
 
-    self.__shiftConfidence(info1, second.getStart() - first.getStart(), 'cpos')
+    self.__shiftConfidence(info1, first.getStart() - second.getStart(), 'cpos')
     pos = second.getStart()
     info = {}
-    info['max'] = min(first.getEnd(), second.getEnd())
+    info['max'] = max(first.getEnd(), second.getEnd())
     info.update(self.__countCpos(info1, info2))
-    info.update(self.__countCilen(info1, info2))
+    info.update(self.__countCilen(info1, info2, False))
     info.update(self.__countIntervals(info1, info2))
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.DEL, first.getReference(), pos, None, first.getReferenceSequence(), Variation.mtype.JOINED, info=info)
@@ -232,6 +235,12 @@ class JoinFactory(BaseFactory):
     info['traend'] = infoTra['traend']
     info['tracpos'] = infoTra.get('tracpos', 0)
     info['tracend'] = infoTra.get('tracend', 0)
-    del info['cilen']
+
+    if 'cilen' in info:
+      del info['cilen']
+
+    if 'svlen' in info:
+      del info['svlen']
+
     self._repairInfo(pos, info)
     return Variation(Variation.vtype.TRA, first.getReference(), pos, None, second.getReferenceSequence(), Variation.mtype.JOINED, info=info)

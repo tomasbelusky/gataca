@@ -87,7 +87,7 @@ class Variation:
     """
     Return rightmost index of variation if exist, else return leftmost index
     """
-    return self.__info.get('end', self.__start)
+    return self.__info.get('end', self.__info.get('max', self.__start))
 
   def getMaxStart(self):
     """
@@ -99,7 +99,7 @@ class Variation:
     """
     Return max rightmost index of variation if exist, else return leftmost index
     """
-    return self.__info.get('end', self.__info.get('max', self.__start)) + self.__info.get('cend', 0)
+    return self.getEnd() + self.__info.get('cend', 0)
 
   def getLength(self):
     """
@@ -153,3 +153,9 @@ class Variation:
     Increment depth
     """
     self.__info['depth'] += 1
+
+  def overlap(self, variation, check=True):
+    """
+    Check if variation overlaps with another variation
+    """
+    return (self.getMaxStart() <= variation.getMaxStart() and variation.getMaxEnd() <= self.getMaxEnd()) or (check and variation.overlap(self, False))

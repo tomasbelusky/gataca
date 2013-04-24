@@ -219,9 +219,9 @@ class Sample:
     if self.__countInsertSize: # estimate insert length's min and max
       self.__estimateInterval()
 
-    if self.__countCoverage: # estimate coverage and repair GC content
-      self.__estimateCoverage()
-      self.__repairGCcontent()
+    #if self.__countCoverage: # estimate coverage and repair GC content
+    #  self.__estimateCoverage()
+    #  self.__repairGCcontent()
 
   def fetchReference(self, rindex, start, end):
     """

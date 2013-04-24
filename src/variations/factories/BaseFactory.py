@@ -31,6 +31,9 @@ class BaseFactory:
     if info.get('cend', 1) <= 0: # remove cend
       del info['cend']
 
+    if info.get('svlen', 1) <= 0: # svlen can't be zero or negative
+      del info['svlen']
+
     if (start + info.get('cpos', 0)) < 0: # can't be negative
       info['cpos'] = -start
 
@@ -40,15 +43,36 @@ class BaseFactory:
     if info.get('tracend', 1) <= 0: # remove tracend
       del info['tracend']
 
-    cilen = info.get('cilen', [-1, 1])
+    end = info.get('end', info.get('max', start))
+    length = end - start + 1
+    maxStart = start + info.get('cpos', 0)
+    maxEnd = end + info.get('cend', 0)
+    maxLength = maxEnd - maxStart + 1
 
-    if cilen[0] == cilen[1]: # remove cilen
-      if cilen[0] != 0: # create svlen
-        info['svlen'] = cilen[0]
+    if 'cilen' in info: # count cilen
+      if start != end: # not inserted sequence
+        if info['cilen'][1] < length: # check min length
+          info['cilen'][0] = length
+          info['cilen'][1] = length
+        elif info['cilen'][0] < length:
+          info['cilen'][0] = length
+        elif maxLength < info['cilen'][0]: # check max length
+          info['cilen'][0] = maxLength
+          info['cilen'][1] = maxLength
+        elif maxLength < info['cilen'][1]:
+          info['cilen'][1] = maxLength
 
-      del info['cilen']
+      if info['cilen'][0] == info['cilen'][1]: # remove cilen
+        if info['cilen'][0] != 0: # create svlen
+          info['svlen'] = info['cilen'][0]
 
-    if info.get('cpos', None) is None and info.get('max', -1) == start: # remove max
+        del info['cilen']
+      elif info['cilen'][0] > info['cilen'][1]: # remove cilen
+        info['svlen'] = info['cilen'][1]
+        del info['cilen']
+
+    if 'max' in info and info.get('cpos', info.get('cilen', None)) is None: # max -> end
+      info['end'] = start + length - 1
       del info['max']
 
     # count imprecise
@@ -58,3 +82,6 @@ class BaseFactory:
                         'max' in info or \
                         'tracpos' in info or \
                         'tracend' in info
+
+    if not info['imprecise'] and 'svlen' not in info: # add svlen
+      info['svlen'] = length

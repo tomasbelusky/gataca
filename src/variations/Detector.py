@@ -139,7 +139,6 @@ class Detector:
     for ref in self.__variations: # help clusters to decide about winning variations
       for i in range(len(self.__variations[ref])):
         variation = self.__variations[ref].pop(0)
-        #print "process", variation.getStart()
 
         if not self.__addVariationIntoOpposite(variation, False):
           self.__variations[ref].append(variation)
@@ -171,7 +170,6 @@ class Detector:
         start = variation.getMaxStart()
         end = variation.getMaxEnd()
         added = False
-        #print "make", start
 
         for interval in self.__clusterTree[ref].find(start-1, end+1): # compare similarity with overlapped clusters
           clusters = self.__clusters[ref].get((interval.start, interval.end), [])
@@ -220,8 +218,6 @@ class Detector:
 
     # fetch paired reads (can be also singleton or unmapped mate)
     for paired in self.__sample.fetchPairs(reference=Settings.REFERENCE, start=Settings.START, end=Settings.END):
-      #print "start", paired.read.pos
-
       if paired.isSingle():
         self.__getSnpIndels(paired.read)
       else:

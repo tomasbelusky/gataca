@@ -117,9 +117,10 @@ class CigarFactory(BaseFactory):
             mdtag = mdtag[1:]
             delLength += 1
             delPos = pos + 1
+            end = delPos + delLength
             delVariation = Variation(Variation.vtype.DEL, refname, pos, None, refseq,
                                      Variation.mtype.CIGAR_MD,
-                                     info={'svlen': delLength, 'intervals': [[delPos, delPos+delLength]]})
+                                     info={'svlen': delLength, 'intervals': [[delPos, end]], 'end' : end})
           else: # end of deletion
             internIndex += delLength
             delLength = 0
