@@ -4,8 +4,6 @@
 __author__ = "Tomáš Beluský"
 __date__ = "31.03. 2013"
 
-import sys
-
 from src.variations.Variation import Variation
 from StructuralCluster import StructuralCluster
 
@@ -28,37 +26,38 @@ class OppositeCluster(StructuralCluster):
     self.__reference = self.__variations[0].getReference()
     self._createJoinTable(self._sample)
 
-  def __coverageProcess(self):
+  def __coverageProcess(self, bestCount):
     """
     Find out winner variation with coverage
     """
-    delWinnerIndex = -1
-    delWinnerCoverage = 0
-    dupWinnerIndex = -1
-    dupWinnerCoverage = sys.maxint
+    winnerIndex = -1
 
-    for index, variation in enumerate(self.__variations):
-      if variation.getType() in (Variation.vtype.DEL, Variation.vtype.DUP):
+    for index, variations in enumerate(self.__others):
+      if len(variations) == bestCount:
+        actualWinnerIndex = -1
+        variation = self.__variations[index]
         coverage = self._sample.getInexactCoverage(variation.getReference(), variation.getStart(), variation.getEnd())
 
         if variation.getType() == Variation.vtype.DEL: # deletion
-          if coverage < self._sample.getMinCoverage() or coverage < delWinnerCoverage:
-            delWinnerIndex = index
+          if coverage < self._sample.getMinCoverage():
+            actualWinnerIndex = index
         elif variation.getType() == Variation.vtype.DUP: # duplication
-          if self._sample.getMaxCoverage() < coverage or dupWinnerCoverage < coverage:
-            dupWinnerIndex = index
+          if self._sample.getMaxCoverage() < coverage:
+            actualWinnerIndex = index
+        elif self._sample.getMinCoverage() <= coverage and coverage <= self._sample.getMaxCoverage(): # other variation
+          actualWinnerIndex = index
 
-    if delWinnerIndex != -1: # deletion
-      if dupWinnerIndex == -1: # duplication can't have winner
-        self.__winner = self.__variations[delWinnerIndex]
-        self.__helpers = set(self.__others.pop(delWinnerIndex))
-    elif dupWinnerIndex != -1: # duplication
-      self.__winner = self.__variations[dupWinnerIndex]
-      self.__helpers = set(self.__others.pop(dupWinnerIndex))
-    else: # other variation than deletion and duplication
-      self.__findOutWinner(True)
+        if actualWinnerIndex != -1: # founded winner
+          if winnerIndex == -1:
+            winnerIndex = actualWinnerIndex
+          else: # can't have more winners
+            return
 
-  def __findOutWinner(self, skipCNV=False):
+    if winnerIndex != -1: # winner exists
+      self.__winner = self.__variations[winnerIndex]
+      self.__helpers = set(self.__others.pop(winnerIndex))
+
+  def __findOutWinner(self):
     """
     Find out winner in variations
     """
@@ -67,9 +66,6 @@ class OppositeCluster(StructuralCluster):
     count = 0
 
     for index, variations in enumerate(self.__others): # find variations with most helpers
-      if skipCNV and self.__variations[index].getType in (Variation.vtype.DEL, Variation.vtype.DUP):
-        continue
-
       actualCount = len(variations)
 
       if actualCount > bestCount: # more helpers
@@ -83,14 +79,16 @@ class OppositeCluster(StructuralCluster):
       self.__winner = self.__variations[bestIndex]
       self.__helpers = set(self.__others.pop(bestIndex))
 
+    return bestCount
+
   def process(self):
     """
     Do some processing in cluster
     """
-    self.__findOutWinner()
+    bestCount = self.__findOutWinner()
 
     if self.__winner is None: # find out winner with coverage
-      self.__coverageProcess()
+      self.__coverageProcess(bestCount)
 
     for variations in self.__others: # store unused variations
       for var in variations:

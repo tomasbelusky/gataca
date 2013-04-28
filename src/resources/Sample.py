@@ -357,9 +357,12 @@ class Sample:
     """
     Return reference sequences from BAM header
     """
-    if 'SQ' in self.__reads.header:
-      for record in self.__reads.header['SQ']:
-        yield record
+    try:
+      if 'SQ' in self.__reads.header:
+        for record in self.__reads.header['SQ']:
+          yield record
+    except Exception:
+      yield []
 
   def getReferences(self):
     """

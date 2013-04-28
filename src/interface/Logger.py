@@ -1,14 +1,14 @@
-#!/usr/bin/env python2.5
-#-*- coding: utf-8 -*-
+#!/usr/bin/python2.7
+#-*- encoding: utf-8 -*-
 
 __author__ = "Tomáš Beluský"
-__date__ = "28.01.2012"
+__date__ = "28.01. 2012"
 
 import cgi
 import copy
 import datetime
-from types import *
 import traceback
+from types import *
 
 class Logger:
   """
