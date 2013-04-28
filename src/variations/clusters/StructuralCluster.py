@@ -110,7 +110,7 @@ class StructuralCluster(AbstractCluster):
       intervals[tuple(int1)] = count
 
     for start, end in intervals: # get fulldepth in intervals
-      fulldepth += self._sample.getExactCoverages(self._rindex, start, end)
+      fulldepth += self._sample.getExactCoverage(self._rindex, start, end)
 
       info['conf'] = self.countConfidence(depth, fulldepth)
 

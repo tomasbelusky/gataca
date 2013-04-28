@@ -4,6 +4,9 @@
 __author__ = "Tomáš Beluský"
 __date__ = "31.03. 2013"
 
+import sys
+
+from src.variations.Variation import Variation
 from StructuralCluster import StructuralCluster
 
 class OppositeCluster(StructuralCluster):
@@ -22,8 +25,77 @@ class OppositeCluster(StructuralCluster):
     self.__fromClusters = set()
     self.__winner = None
     self.__others = [[] for v in self.__variations]
-    self._createJoinTable(self._sample)
     self.__reference = self.__variations[0].getReference()
+    self._createJoinTable(self._sample)
+
+  def __coverageProcess(self):
+    """
+    Find out winner variation with coverage
+    """
+    delWinnerIndex = -1
+    delWinnerCoverage = 0
+    dupWinnerIndex = -1
+    dupWinnerCoverage = sys.maxint
+
+    for index, variation in enumerate(self.__variations):
+      if variation.getType() in (Variation.vtype.DEL, Variation.vtype.DUP):
+        coverage = self._sample.getInexactCoverage(variation.getReference(), variation.getStart(), variation.getEnd())
+
+        if variation.getType() == Variation.vtype.DEL: # deletion
+          if coverage < self._sample.getMinCoverage() or coverage < delWinnerCoverage:
+            delWinnerIndex = index
+        elif variation.getType() == Variation.vtype.DUP: # duplication
+          if self._sample.getMaxCoverage() < coverage or dupWinnerCoverage < coverage:
+            dupWinnerIndex = index
+
+    if delWinnerIndex != -1: # deletion
+      if dupWinnerIndex == -1: # duplication can't have winner
+        self.__winner = self.__variations[delWinnerIndex]
+        self.__helpers = set(self.__others.pop(delWinnerIndex))
+    elif dupWinnerIndex != -1: # duplication
+      self.__winner = self.__variations[dupWinnerIndex]
+      self.__helpers = set(self.__others.pop(dupWinnerIndex))
+    else: # other variation than deletion and duplication
+      self.__findOutWinner(True)
+
+  def __findOutWinner(self, skipCNV=False):
+    """
+    Find out winner in variations
+    """
+    bestIndex = -1
+    bestCount = 0
+    count = 0
+
+    for index, variations in enumerate(self.__others): # find variations with most helpers
+      if skipCNV and self.__variations[index].getType in (Variation.vtype.DEL, Variation.vtype.DUP):
+        continue
+
+      actualCount = len(variations)
+
+      if actualCount > bestCount: # more helpers
+        bestIndex = index
+        bestCount = len(self.__others[index])
+        count = 1
+      elif actualCount == bestCount: # same count of helpers
+        count += 1
+
+    if count == 1: # winner exists
+      self.__winner = self.__variations[bestIndex]
+      self.__helpers = set(self.__others.pop(bestIndex))
+
+  def process(self):
+    """
+    Do some processing in cluster
+    """
+    self.__findOutWinner()
+
+    if self.__winner is None: # find out winner with coverage
+      self.__coverageProcess()
+
+    for variations in self.__others: # store unused variations
+      for var in variations:
+        if var not in self.__helpers and var not in self.__fromClusters:
+          self.__unused.add(var)
 
   def getVariations(self):
     """
@@ -48,35 +120,6 @@ class OppositeCluster(StructuralCluster):
         self.__others[index].append(variation)
 
     return newVariation
-
-  def process(self):
-    """
-    Find out winner variations with it's helpers and also store unused variations
-      TODO check coverage
-           return INS/DEL if available and can't be decided which variation is true
-    """
-    bestIndex = -1
-    bestCount = 0
-    count = 0
-
-    for index, variations in enumerate(self.__others): # find variations with most helepers
-      actualCount = len(variations)
-
-      if actualCount > bestCount: # more helpers
-        bestIndex = index
-        bestCount = len(self.__others[index])
-        count = 1
-      elif actualCount == bestCount: # same count of helpers
-        count += 1
-
-    if count == 1: # winner exists
-      self.__winner = self.__variations[bestIndex]
-      self.__helpers = set(self.__others.pop(bestIndex))
-
-    for variations in self.__others: # store unused variations
-      for var in variations:
-        if var not in self.__helpers and var not in self.__fromClusters:
-          self.__unused.add(var)
 
   def getWinner(self):
     """

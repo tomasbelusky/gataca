@@ -35,7 +35,7 @@ class AbstractCluster:
     Create string from info fields
     """
     if not info:
-      return ""
+      return "."
 
     result = ""
 

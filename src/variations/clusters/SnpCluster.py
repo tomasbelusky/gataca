@@ -53,7 +53,7 @@ class SnpCluster(AbstractCluster):
       return ""
 
     refseqs = {}
-    fulldepth = self._sample.getExactCoverages(self._rindex, self._start, self._end)
+    fulldepth = self._sample.getExactCoverage(self._rindex, self._start, self._end)
 
     for var in self.__alleles: # get reference sequence and common info
       confidence = self.countConfidence(var.getInfo('depth'), fulldepth)

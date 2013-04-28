@@ -41,12 +41,12 @@ class Detector:
     self.__vcfCreator.addInfo('CILEN', 2, 'Integer', 'Confidence interval of length of variation')
     self.__vcfCreator.addInfo('CPOS', 1, 'Integer', 'Confidence of POS')
     self.__vcfCreator.addInfo('CEND', 1, 'Integer', 'Confidence of END')
+    self.__vcfCreator.addInfo('MAX', 1, 'Integer', 'Maximal end position of deleted sequence')
     self.__vcfCreator.addInfo('TRACHROM', 1, 'String', 'Chromosome of translocated sequence')
     self.__vcfCreator.addInfo('TRAPOS', 1, 'Integer', 'Start position of translocated sequence')
     self.__vcfCreator.addInfo('TRAEND', 1, 'Integer', 'End position of translocated sequence')
     self.__vcfCreator.addInfo('TRACPOS', 1, 'Integer', 'Confidence of start position of translocated sequence')
     self.__vcfCreator.addInfo('TRACEND', 1, 'Integer', 'Confidence of end position of translocated sequence')
-    self.__vcfCreator.addInfo('MAX', 1, 'Integer', 'Maximal end position of deleted sequence')
     self.__vcfCreator.addInfo('CONF', 'A', 'Integer', 'Confidence of each variation')
     self.__vcfCreator.addAlt('DEL', 'Deletion')
     self.__vcfCreator.addAlt('INS', 'Insertion')
@@ -60,7 +60,10 @@ class Detector:
 
     self.__vcfCreator.writeHeader()
 
-  def __emptyVariables(self):
+  def __clearVariables(self):
+    """
+    Clear variables
+    """
     self.__variations = dict((x, []) for x in self.__sample.getReferences())
 
     self.__clusters = dict((x, {}) for x in self.__sample.getReferences())
@@ -214,7 +217,7 @@ class Detector:
     Start finding variations
     """
     self.__sample.preprocessing()
-    self.__emptyVariables()
+    self.__clearVariables()
 
     # fetch paired reads (can be also singleton or unmapped mate)
     for paired in self.__sample.fetchPairs(reference=Settings.REFERENCE, start=Settings.START, end=Settings.END):

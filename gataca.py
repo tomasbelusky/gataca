@@ -10,6 +10,7 @@ import re
 import sys
 import os
 
+from src.interface.Logger import Logger
 from src.interface.interface import parseRegion
 from src.interface.Settings import Settings
 from src.resources.Sample import Sample
@@ -164,10 +165,11 @@ def main(argv):
   sample.close()
 
 if __name__ == "__main__":
-  #try:
+  try:
     main(sys.argv)
-  #except Exception, ex:
-  #  sys.stderr.write("%s: error: %s\n" % (sys.argv[0], ex))
-  #  sys.exit(1)
+  except Exception, ex:
+    Logger.save(sys.exc_info()[2])
+    sys.stderr.write("%s: error: %s\n" % (sys.argv[0], ex))
+    sys.exit(1)
 
-  #sys.exit(0)
+  sys.exit(0)

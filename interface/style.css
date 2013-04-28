@@ -1,0 +1,48 @@
+html, body {
+  font: normal 13px Times;
+  background-color: #FFFFFF;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+a {
+  color: rgb(0,8,255);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.info {
+  width: 100%;
+  background-color: rgb(102,204,204);
+}
+
+.info th {
+  width: 100px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.info td {
+  vertical-align: top;
+}
+
+.navigation {
+  width: 100%;
+  background-color: rgb(92,194,194);
+}
+
+.navigation td {
+  width: 50%;
+}
+
+.navigation td+td {
+  text-align: right;
+}
+
+ul {
+  font-family: "Courier New";
+}

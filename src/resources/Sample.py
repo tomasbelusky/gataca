@@ -115,8 +115,10 @@ class Sample:
         self.__coverage[ref][pos] = c
         coverages.append(c)
 
-    (self.__minCoverage, self.__maxCoverage) = self.__countInterval(coverages, Settings.COVERAGE_CORE, Settings.MIN_COVERAGE_COUNT)
-    self.__gcContent = {}
+    self.__gcContent.clear()
+
+    if self.__countCoverage:
+      (self.__minCoverage, self.__maxCoverage) = self.__countInterval(coverages, Settings.COVERAGE_CORE, Settings.MIN_COVERAGE_COUNT)
 
   def __addCoverage(self, read):
     """
@@ -216,12 +218,11 @@ class Sample:
     """
     self.__remapping()
 
-    if self.__countInsertSize: # estimate insert length's min and max
+    if self.__countInsertSize:
       self.__estimateInterval()
 
-    #if self.__countCoverage: # estimate coverage and repair GC content
-    #  self.__estimateCoverage()
-    #  self.__repairGCcontent()
+    self.__estimateCoverage()
+    self.__repairGCcontent()
 
   def fetchReference(self, rindex, start, end):
     """
@@ -313,48 +314,25 @@ class Sample:
     """
     return self.__maxCoverage
 
-  def getInexactCoverage(self, reference, position):
+  def getInexactCoverage(self, reference, start, end):
     """
-    Return inexact repaired coverage from GC content in reference and position
+    Return inexact repaired coverage from GC content
     """
-    pos = self.getWindow(position)
-    return self.__coverage[reference].get(pos, 0)
-
-  def getInexactCoverages(self, reference, start, end):
-    """
-    Return inexact repaired coverage from GC content in reference and interval
-      Faster then exact method
-    """
+    tid = self.getRefIndex(reference)
     startPos = self.getWindow(start)
     endPos = self.getWindow(end) + 1
     coverage = 0
     count = 0
 
     for i in range(startPos, endPos, Settings.WINDOW_SIZE):
-      coverage += self.__coverage[reference].get(i, 0)
+      coverage += self.__coverage[tid].get(i, 0)
       count += 1
 
     return int(float(coverage) / count if count > 0 else 0)
 
-  def getExactCoverage(self, reference, start):
+  def getExactCoverage(self, reference, start, end):
     """
-    Return exact coverage in reference and position
-      Slower then inexact method
-    """
-    count = 0
-
-    for read in self.__reads.fetch(reference=self.__reads.references[reference], start=start, end=start+1):
-      r = Read(read, True, True, self.__reads.references)
-
-      if not r.isUnmapped() and not r.isDuplicate() and r.hasMinQuality():
-        count += 1
-
-    return count
-
-  def getExactCoverages(self, reference, start, end):
-    """
-    Return exact coverage in reference and interval
-      Slower then inexact method
+    Return exact coverage
     """
     count = 0
 

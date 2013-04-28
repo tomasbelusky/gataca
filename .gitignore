@@ -6,4 +6,5 @@ inputs
 outputs
 nbproject
 tmp
-statistics/
+statistics
+log
