@@ -12,7 +12,7 @@ import traceback
 
 class Logger:
   """
-  Debug program's flow
+  Log program's flow when exception has occured
   """
   LOG_PATH = "log"
 

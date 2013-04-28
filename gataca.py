@@ -126,6 +126,12 @@ def main(argv):
   """
   Main function
   """
+  if not os.path.exists(Sample.TMP_PATH): # create tmp dir
+    os.makedirs(Sample.TMP_PATH)
+
+  if not os.path.exists(Logger.LOG_PATH): # create log dir
+    os.makedirs(Logger.LOG_PATH)
+
   (options, args) = getParameters(argv)
   params = options.__dict__
 
@@ -134,9 +140,6 @@ def main(argv):
 
   if not params['output']: # set output
     params['output'] = sys.stdout
-
-  if not os.path.exists(Sample.TMP_PATH): # create tmp dir
-    os.makedirs(Sample.TMP_PATH)
 
   # set settings
   (Settings.REFERENCE, Settings.START, Settings.END) = parseRegion(params['region'])
