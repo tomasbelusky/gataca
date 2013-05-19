@@ -80,7 +80,7 @@ class SnpCluster(AbstractCluster):
 
     for refseq, info in refseqs.items(): # print row for every reference sequence
       result.append("%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
-                                                     self._start,
+                                                     self._start + 1,
                                                      refseq,
                                                      ','.join(info['sequences']),
                                                      self.infoString(info)))

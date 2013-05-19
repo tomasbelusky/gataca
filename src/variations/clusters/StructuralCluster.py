@@ -118,7 +118,7 @@ class StructuralCluster(AbstractCluster):
         return ""
 
     return "%s\t%s\t.\t%s\t%s\t.\t.\t%s" % (self._rname,
-                                            self._actualStart,
+                                            self._actualStart + 1,
                                             self.__consensus.getReferenceSequence(),
                                             self.__consensus.getSequence(),
                                             self.infoString(info))

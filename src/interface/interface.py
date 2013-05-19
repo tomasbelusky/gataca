@@ -5,6 +5,7 @@ __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
 import re
+import sys
 import math
 
 def enum(**enums):
@@ -35,7 +36,7 @@ def parseRegion(string):
     regionMatch = re.match(r'^([^:]*)(?::([0-9]*)(?:-([0-9]*))?)?$', string)
 
     if not regionMatch:
-      raise Exception("Region has bad format")
+      sys.exit("Region has bad format")
 
     region = list(regionMatch.groups())
 

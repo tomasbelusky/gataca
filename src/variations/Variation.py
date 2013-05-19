@@ -110,8 +110,8 @@ class Variation:
     elif 'cilen' in self.__info:
       return self.__info['cilen']
     elif 'trachrom' in self.__info:
-      minLen = self.info['traend'] - self.info['trapos']
-      maxLen = (self.info['traend'] + self.info.get('tracend', 0)) - (self.info['trapos'] + self.info.get('tracpos', 0))
+      minLen = self.__info['traend'] - self.__info['trapos']
+      maxLen = (self.__info['traend'] + self.__info.get('tracend', 0)) - (self.__info['trapos'] + self.__info.get('tracpos', 0))
     else:
       minLen = self.getEnd() - self.getStart()
       maxLen = self.getMaxEnd() - self.getMaxStart()

@@ -4,11 +4,11 @@
 __author__ = "Tomáš Beluský"
 __date__ = "05.03. 2013"
 
-import optparse
-import pysam
+import os
 import re
 import sys
-import os
+import pysam
+import optparse
 
 from src.interface.Logger import Logger
 from src.interface.interface import parseRegion
@@ -81,7 +81,6 @@ def getParameters(argv):
                  type="float", metavar="FLOAT", default=Settings.MIN_CONFIDENCE)
   parser.add_option_group(var)
 
-  parser.set_defaults(region=None)
   return parser.parse_args(argv[1:])
 
 def checkPositive(name, value):
@@ -89,7 +88,7 @@ def checkPositive(name, value):
   Check if value is positive
   """
   if value <= 0:
-    raise Exception("%s must be positive integer value" % name)
+    sys.exit("%s must be positive integer value" % name)
 
   return value
 
@@ -101,7 +100,7 @@ def checkInterval(name, value, minValue, minInclude, maxValue, maxInclude):
      (maxInclude and maxValue < value) or (not maxInclude and maxValue <= value):
     leftBracket = "[" if minInclude else "("
     rightBracket = "]" if maxInclude else ")"
-    raise Exception("%s must be in interval %c%d,%d%c" % (name, leftBracket, minValue, maxValue, rightBracket))
+    sys.exit("%s must be in interval %c%d,%d%c" % (name, leftBracket, minValue, maxValue, rightBracket))
 
   return value
 
@@ -112,7 +111,7 @@ def parseInterval(value, interval):
   match = re.match(r'(?P<min>\d+),(?P<max>\d+)', interval)
 
   if not match:
-    raise Exception("%s interval has bad format, should be MIN,MAX" % value)
+    sys.exit("%s interval has bad format, should be MIN,MAX" % value)
 
   minValue = int(match.group('min'))
   maxValue = int(match.group('max'))
@@ -136,7 +135,7 @@ def main(argv):
   params = options.__dict__
 
   if len(args) < 2: # check required input files
-    raise Exception("Please specify file with sample and file with reference genome")
+    sys.exit("Please specify file with sample and file with reference genome")
 
   if not params['output']: # set output
     params['output'] = sys.stdout
@@ -161,7 +160,7 @@ def main(argv):
   sample = Sample(args[0], refgenome)
 
   if Settings.REFERENCE and Settings.REFERENCE not in sample.getReferences(): # check reference name
-    raise Exception("Unknown chromosome")
+    sys.exit("Unknown chromosome")
 
   detector = Detector(sample, refgenome, params['output'])
   detector.start()

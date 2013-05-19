@@ -1,5 +1,5 @@
 /**
- * Hide message error
+ * Hide variable's value
  */
 function hide(elm) {
   name = elm
